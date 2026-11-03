@@ -32,24 +32,24 @@
     }
 
     main {
-      width: min(1120px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 26px 0 40px;
+      padding: 24px 0 40px;
     }
 
     .topbar, .brand, .connection, .heading, .card-head, .metric,
-    .chart-foot, .signal-head, .market-stat-row {
+    .signal-head, .market-stats, .chart-toolbar {
       display: flex;
       align-items: center;
     }
 
-    .topbar, .heading, .card-head, .metric, .chart-foot,
-    .signal-head, .market-stat-row {
+    .topbar, .heading, .card-head, .metric, .signal-head,
+    .market-stats, .chart-toolbar {
       justify-content: space-between;
       gap: 14px;
     }
 
-    .topbar { margin-bottom: 28px; }
+    .topbar { margin-bottom: 27px; }
     .brand { gap: 12px; }
 
     .brand-icon {
@@ -77,6 +77,7 @@
     .dot {
       width: 8px;
       height: 8px;
+      flex: 0 0 auto;
       border-radius: 50%;
       background: #667085;
     }
@@ -89,6 +90,11 @@
     .dot.bad {
       background: var(--red);
       box-shadow: 0 0 0 4px rgba(255, 116, 130, .12);
+    }
+
+    .dot.warn {
+      background: var(--amber);
+      box-shadow: 0 0 0 4px rgba(245, 199, 107, .12);
     }
 
     .heading {
@@ -125,12 +131,22 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .notice, .error {
+      margin-bottom: 14px;
+      padding: 10px 13px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    .notice {
+      border: 1px solid rgba(150, 165, 255, .17);
+      color: #c2cbff;
+      background: rgba(150, 165, 255, .055);
+    }
+
     .error {
       display: none;
-      margin-bottom: 14px;
-      padding: 11px 14px;
       border: 1px solid rgba(255, 116, 130, .25);
-      border-radius: 12px;
       color: #ffb4bc;
       background: rgba(255, 116, 130, .08);
       overflow-wrap: anywhere;
@@ -138,7 +154,7 @@
 
     .grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.55fr) minmax(285px, 1fr);
+      grid-template-columns: minmax(0, 1.55fr) minmax(290px, 1fr);
       gap: 15px;
     }
 
@@ -152,10 +168,10 @@
       box-shadow: 0 18px 48px rgba(0, 0, 0, .2);
     }
 
-    .chart-card { grid-column: 1; padding: 19px 20px 15px; }
+    .chart-card { grid-column: 1; padding: 18px 19px 14px; }
     .details-card { grid-column: 2; grid-row: 1 / span 3; align-self: start; padding: 19px; }
     .signal-card { grid-column: 1; padding: 19px 20px; }
-    .spot-card { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 17px 20px; }
+    .stats-card { grid-column: 1 / -1; padding: 17px 20px; }
     .how-card { grid-column: 1 / -1; padding: 19px 20px; }
 
     .card-head { align-items: flex-start; }
@@ -172,29 +188,48 @@
       white-space: nowrap;
     }
 
+    .chart-toolbar { margin-top: 14px; }
+    .chart-value {
+      font-size: 21px;
+      line-height: 1.15;
+      font-weight: 730;
+      letter-spacing: -.035em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart-change {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .chart-label {
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
     .chart-wrap {
       position: relative;
-      height: 285px;
-      margin-top: 14px;
+      height: 230px;
+      margin-top: 8px;
       overflow: hidden;
     }
 
-    #chart {
+    canvas.chart {
       display: block;
       width: 100%;
       height: 100%;
-      overflow: hidden;
     }
 
     .chart-foot {
-      margin-top: 3px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
       color: var(--muted);
       font-size: 10px;
     }
-
-    .signal-head { align-items: flex-start; }
-    .signal-title { margin: 0; font-size: 14px; }
-    .signal-caption { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 
     .lean-badge {
       padding: 6px 10px;
@@ -203,7 +238,7 @@
       color: var(--amber);
       background: rgba(245, 199, 107, .07);
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 750;
       letter-spacing: .04em;
       white-space: nowrap;
     }
@@ -272,13 +307,16 @@
     .metric-label { color: var(--muted); font-size: 12px; }
 
     .metric-value {
-      max-width: 58%;
+      max-width: 60%;
       overflow-wrap: anywhere;
       text-align: right;
       font-size: 13px;
       font-weight: 650;
       font-variant-numeric: tabular-nums;
     }
+
+    .market-stats { align-items: stretch; }
+    .market-stat { flex: 1; min-width: 0; }
 
     .market-stat + .market-stat {
       padding-left: 16px;
@@ -317,18 +355,15 @@
     }
 
     @media (max-width: 760px) {
-      main { width: min(100% - 24px, 580px); padding-top: 20px; }
+      main { width: min(100% - 24px, 600px); padding-top: 18px; }
       .grid { grid-template-columns: 1fr; }
-      .chart-card, .details-card, .signal-card, .spot-card, .how-card {
+      .chart-card, .details-card, .signal-card, .stats-card, .how-card {
         grid-column: 1;
         grid-row: auto;
       }
-      .chart-card { order: 1; }
-      .signal-card { order: 2; }
-      .details-card { order: 3; }
-      .spot-card { order: 4; }
-      .how-card { order: 5; }
-      .chart-wrap { height: 245px; }
+      .chart-wrap { height: 220px; }
+      .stats-card { order: 5; }
+      .how-card { order: 6; }
     }
 
     @media (max-width: 430px) {
@@ -336,6 +371,17 @@
       .clock { padding: 7px 9px; font-size: 10px; }
       .chart-card, .details-card, .signal-card, .how-card { padding: 16px; }
       .conditions { grid-template-columns: 1fr; }
+      .chart-wrap { height: 195px; }
+      .chart-value { font-size: 19px; }
+      .market-stat strong { font-size: 18px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+      }
     }
   </style>
 </head>
@@ -353,7 +399,7 @@
 
       <div class="connection">
         <span class="dot" id="statusDot"></span>
-        <span id="statusText">Connecting to market data</span>
+        <span id="statusText">Connecting to relay</span>
       </div>
     </header>
 
@@ -365,56 +411,87 @@
       <div class="clock">Market closes <strong id="clock">--:--</strong></div>
     </section>
 
+    <div class="notice">
+      This page checks the relay every 2 seconds. The relay may refresh its upstream data less often, so a fast page update does not guarantee a fresh market quote.
+    </div>
     <div class="error" id="error" role="status"></div>
 
     <section class="grid">
       <article class="card chart-card">
         <div class="card-head">
           <div>
-            <h3>Kalshi YES price</h3>
+            <h3>BTC spot price</h3>
+            <p id="btcChartTitle">Coinbase BTC-USD</p>
+          </div>
+          <span class="live-tag">BTC</span>
+        </div>
+        <div class="chart-toolbar">
+          <div>
+            <div class="chart-value" id="btcChartValue">—</div>
+            <div class="chart-change" id="btcChange">Waiting for samples</div>
+          </div>
+          <span class="chart-label">Recent 15 minutes</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas class="chart" id="btcChart" role="img" aria-label="BTC spot price chart"></canvas>
+        </div>
+        <div class="chart-foot">
+          <span>Only observed price changes are plotted</span>
+          <span id="btcLastChange">No samples yet</span>
+        </div>
+      </article>
+
+      <article class="card chart-card">
+        <div class="card-head">
+          <div>
+            <h3>Kalshi YES midpoint</h3>
             <p id="marketTicker">Waiting for market</p>
           </div>
-          <span class="live-tag">LIVE</span>
+          <span class="live-tag">KALSHI</span>
         </div>
-
+        <div class="chart-toolbar">
+          <div>
+            <div class="chart-value" id="yesChartValue">—</div>
+            <div class="chart-change" id="yesChange">Waiting for samples</div>
+          </div>
+          <span class="chart-label">Recent 15 minutes</span>
+        </div>
         <div class="chart-wrap">
-          <svg id="chart" viewBox="0 0 900 300" preserveAspectRatio="none"
-               role="img" aria-label="Kalshi YES price over time"></svg>
+          <canvas class="chart" id="yesChart" role="img" aria-label="Kalshi YES midpoint chart"></canvas>
         </div>
-
         <div class="chart-foot">
-          <span>Updates about every 5 seconds</span>
-          <span id="updated">Waiting for update</span>
+          <span>Displayed as cents per contract</span>
+          <span id="yesLastChange">No samples yet</span>
         </div>
       </article>
 
       <article class="card signal-card">
         <div class="signal-head">
           <div>
-            <h3 class="signal-title">Market lean</h3>
-            <p class="signal-caption">Rule-based snapshot, not a forecast</p>
+            <h3 class="signal-title">Dashboard pick</h3>
+            <p class="signal-caption">Checklist signal—not a guaranteed prediction</p>
           </div>
-          <span class="lean-badge" id="leanBadge">WAIT</span>
+          <span class="lean-badge" id="pickBadge">WAIT</span>
         </div>
 
-        <div class="lean-main wait" id="leanMain">WAIT</div>
-        <p class="signal-reason" id="leanReason">Waiting for enough market data.</p>
+        <div class="lean-main wait" id="pickMain">WAIT</div>
+        <p class="signal-reason" id="pickReason">Waiting for enough market data.</p>
 
         <div class="conditions">
           <div class="condition">
-            <strong>Lean strength</strong>
-            <span id="leanStrength">Not available</span>
+            <strong>Checklist</strong>
+            <span id="checklistScore">Not available</span>
+          </div>
+          <div class="condition">
+            <strong>BTC momentum</strong>
+            <span id="momentum">Not available</span>
           </div>
           <div class="condition">
             <strong>Distance to strike</strong>
             <span id="strikeDistance">Not available</span>
           </div>
           <div class="condition">
-            <strong>YES odds / midpoint</strong>
-            <span id="yesOdds">Not available</span>
-          </div>
-          <div class="condition">
-            <strong>Market spread</strong>
+            <strong>YES bid/ask spread</strong>
             <span id="marketSpread">Not available</span>
           </div>
         </div>
@@ -422,13 +499,12 @@
 
       <article class="card details-card">
         <h3>Market details</h3>
-
         <div class="metric">
-          <span class="metric-label">BTC spot price</span>
+          <span class="metric-label">BTC spot</span>
           <span class="metric-value" id="btc">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">Strike</span>
+          <span class="metric-label">Market strike</span>
           <span class="metric-value" id="strike">—</span>
         </div>
         <div class="metric">
@@ -447,31 +523,43 @@
           <span class="metric-label">Time remaining</span>
           <span class="metric-value" id="timeRemaining">—</span>
         </div>
+        <div class="metric">
+          <span class="metric-label">Last relay check</span>
+          <span class="metric-value" id="lastPoll">—</span>
+        </div>
       </article>
 
-      <article class="card spot-card">
-        <div class="market-stat">
-          <span>BTC spot</span>
-          <strong id="btcLarge">—</strong>
-          <small>Coinbase BTC-USD</small>
-        </div>
-        <div class="market-stat">
-          <span>Kalshi YES midpoint</span>
-          <strong id="yesMid">—</strong>
-          <small>Market price, not a guarantee</small>
+      <article class="card stats-card">
+        <div class="market-stats">
+          <div class="market-stat">
+            <span>BTC spot</span>
+            <strong id="btcLarge">—</strong>
+            <small>Price from relay</small>
+          </div>
+          <div class="market-stat">
+            <span>Kalshi YES midpoint</span>
+            <strong id="yesMid">—</strong>
+            <small>Market price, not a guarantee</small>
+          </div>
+          <div class="market-stat">
+            <span>Samples in chart</span>
+            <strong id="sampleCount">0</strong>
+            <small>Current market window</small>
+          </div>
         </div>
       </article>
 
       <article class="card how-card">
-        <h3>How to read the lean</h3>
-        <p><strong>UP lean:</strong> BTC is above the strike, YES midpoint is at least 55¢, the YES spread is no wider than 5¢, and more than 2 minutes remain.</p>
-        <p><strong>DOWN lean:</strong> BTC is below the strike, YES midpoint is at most 45¢, the NO spread is no wider than 5¢, and more than 2 minutes remain.</p>
-        <p><strong>WAIT:</strong> Conditions disagree, data is missing, the market is near the strike, the spread is wide, or the contract is close to ending. These are simple dashboard rules—not a trading recommendation.</p>
+        <h3>How to read the pick</h3>
+        <p><strong>UP:</strong> BTC is above the strike, YES midpoint is at least 55¢, the YES bid/ask spread is 5¢ or less, and more than 2 minutes remain.</p>
+        <p><strong>DOWN:</strong> BTC is below the strike, YES midpoint is at most 45¢, the YES spread is 5¢ or less, and more than 2 minutes remain.</p>
+        <p><strong>WAIT:</strong> Conditions disagree, information is missing, BTC is very close to the strike, the spread is wide, or the market is near expiry. The checklist does not estimate the probability of winning.</p>
+        <p><strong>Graph tip:</strong> Compare BTC’s direction and position relative to the strike with the YES price. A YES price that does not agree with BTC’s position is a reason to be cautious, not proof that the market is wrong.</p>
       </article>
     </section>
 
     <footer>
-      This dashboard displays public market data and a simple rule-based lean. It does not predict outcomes or provide financial advice. Prices can move quickly, data may be delayed, and you can lose money trading.
+      The UP/DOWN display is a basic rule-based market lean, not individualized financial advice. It does not account for all market conditions, fees, liquidity, or sudden price changes. Verify quotes and contract details before making any decision; trading can result in losses.
     </footer>
   </main>
 
@@ -479,29 +567,35 @@
     "use strict";
 
     const RELAY_URL = "https://kalshi-live-graph.onrender.com";
-    const POLL_INTERVAL_MS = 5000;
-    const MAX_POINTS = 240;
+    const POLL_INTERVAL_MS = 2000;
+    const MAX_BACKOFF_MS = 30000;
     const CHART_WINDOW_MS = 15 * 60 * 1000;
+    const MAX_POINTS = 600;
+    const NEAR_STRIKE_FRACTION = 0.0003;
+    const MAX_SIGNAL_AGE_MS = 60000;
 
     const $ = id => document.getElementById(id);
 
+    const btcCanvas = $("btcChart");
+    const yesCanvas = $("yesChart");
+    const btcCtx = btcCanvas.getContext("2d");
+    const yesCtx = yesCanvas.getContext("2d");
+
+    let btcPoints = [];
+    let yesPoints = [];
+    let latestValues = null;
     let currentTicker = null;
-    let points = [];
-    let currentSnapshot = null;
+    let currentCloseTime = null;
     let pollInProgress = false;
+    let consecutiveFailures = 0;
+    let lastSuccessfulPoll = null;
+    let lastBtcObservedChange = null;
+    let lastYesObservedChange = null;
+    let lastBtcPrice = null;
+    let lastYesMid = null;
+    let resizeObserver = null;
 
-    function setStatus(ok, text) {
-      $("statusDot").className = ok ? "dot ok" : "dot bad";
-      $("statusText").textContent = text;
-    }
-
-    function showError(message) {
-      const box = $("error");
-      box.textContent = message || "";
-      box.style.display = message ? "block" : "none";
-    }
-
-    function readNumber(object, ...keys) {
+    function numberFrom(object, ...keys) {
       for (const key of keys) {
         if (!object || object[key] == null || object[key] === "") continue;
         const value = Number(object[key]);
@@ -510,57 +604,102 @@
       return null;
     }
 
-    function contractPrice(market, side, kind) {
-      const dollarValue = readNumber(market, `${side}_${kind}_dollars`);
-      if (dollarValue != null) return dollarValue;
+    function readContractPrice(market, side, kind) {
+      const dollars = numberFrom(market, `${side}_${kind}_dollars`);
+      if (dollars != null) return dollars;
 
-      const centValue = readNumber(market, `${side}_${kind}`);
-      return centValue == null ? null : centValue / 100;
+      const cents = numberFrom(market, `${side}_${kind}`);
+      return cents == null ? null : cents / 100;
     }
 
-    function yesMidpoint(market) {
-      let yesBid = contractPrice(market, "yes", "bid");
-      let yesAsk = contractPrice(market, "yes", "ask");
-      const noBid = contractPrice(market, "no", "bid");
+    function findStrike(market) {
+      const direct = numberFrom(
+        market,
+        "strike",
+        "strike_price",
+        "floor_strike",
+        "cap_strike",
+        "custom_strike"
+      );
 
-      if (yesBid == null && noBid != null) yesBid = 1 - noBid;
-      if (yesAsk == null && yesBid != null) {
-        const noAsk = contractPrice(market, "no", "ask");
-        if (noAsk != null) yesAsk = 1 - noAsk;
-      }
+      if (direct != null && direct > 0) return direct;
 
+      const description = [
+        market.title,
+        market.subtitle,
+        market.yes_sub_title,
+        market.no_sub_title,
+        market.ticker
+      ].filter(Boolean).join(" ");
+
+      const match = description.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+      if (!match) return null;
+
+      const value = Number(match[1].replaceAll(",", ""));
+      return Number.isFinite(value) && value > 0 ? value : null;
+    }
+
+    function getYesMid(market, yesBid, yesAsk) {
       if (yesBid != null && yesAsk != null) return (yesBid + yesAsk) / 2;
       if (yesBid != null) return yesBid;
       if (yesAsk != null) return yesAsk;
 
-      const lastDollarPrice = readNumber(market, "last_price_dollars");
-      if (lastDollarPrice != null) return lastDollarPrice;
+      const lastDollars = numberFrom(market, "last_price_dollars");
+      if (lastDollars != null) return lastDollars;
 
-      const lastCentPrice = readNumber(market, "last_price");
-      return lastCentPrice == null ? null : lastCentPrice / 100;
+      const lastCents = numberFrom(market, "last_price");
+      return lastCents == null ? null : lastCents / 100;
     }
 
-    function formatMoney(value) {
+    function money(value, digits = 2) {
       if (value == null || !Number.isFinite(value)) return "—";
       return "$" + value.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
       });
     }
 
-    function formatCents(value) {
+    function cents(value) {
       if (value == null || !Number.isFinite(value)) return "—";
       return `${(value * 100).toFixed(1).replace(/\.0$/, "")}¢`;
     }
 
-    function formatSpread(value) {
-      if (value == null || !Number.isFinite(value)) return "Unavailable";
-      return `${(value * 100).toFixed(1).replace(/\.0$/, "")}¢`;
+    function signedMoney(value) {
+      if (value == null || !Number.isFinite(value)) return "—";
+      const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+      return `${sign}${money(Math.abs(value))}`;
     }
 
-    async function getSnapshot() {
+    function setStatus(kind, text) {
+      $("statusDot").className = `dot ${kind}`;
+      $("statusText").textContent = text;
+    }
+
+    function showError(message) {
+      const element = $("error");
+      element.textContent = message || "";
+      element.style.display = message ? "block" : "none";
+    }
+
+    function addSample(points, timestamp, value) {
+      if (value == null || !Number.isFinite(value)) return false;
+
+      const previous = points[points.length - 1];
+      if (previous && Math.abs(previous.value - value) < 1e-10) return false;
+
+      points.push({ time: timestamp, value });
+
+      const cutoff = timestamp - CHART_WINDOW_MS;
+      while (points.length > 1 && points[0].time < cutoff) points.shift();
+      while (points.length > MAX_POINTS) points.shift();
+
+      return true;
+    }
+
+    async function fetchSnapshot() {
       const response = await fetch(`${RELAY_URL}/api/snapshot`, {
-        cache: "no-store"
+        cache: "no-store",
+        headers: { "Accept": "application/json" }
       });
 
       let data;
@@ -574,357 +713,556 @@
         throw new Error(data.error || `Relay request failed (HTTP ${response.status}).`);
       }
 
-      if (!data.market) {
+      if (!data || !data.market) {
         throw new Error("Relay response did not include a market.");
       }
 
       return data;
     }
 
-    function setLean(label, reason, strength) {
-      const badge = $("leanBadge");
-      const main = $("leanMain");
+    function normalizeSnapshot(data) {
+      const market = data.market;
+      const btc = numberFrom(data, "btcPrice", "btc_price", "spotPrice", "spot_price");
 
-      badge.textContent = label;
-      badge.className = "lean-badge" +
-        (label === "UP LEAN" ? " up" : label === "DOWN LEAN" ? " down" : "");
+      const yesBid = readContractPrice(market, "yes", "bid");
+      const yesAsk = readContractPrice(market, "yes", "ask");
+      const noBid = readContractPrice(market, "no", "bid");
+      const noAsk = readContractPrice(market, "no", "ask");
+      const yesMid = getYesMid(market, yesBid, yesAsk);
 
-      main.textContent = label;
-      main.className = "lean-main" +
-        (label === "UP LEAN" ? " up" : label === "DOWN LEAN" ? " down" : " wait");
+      const closeTimestamp = Date.parse(market.close_time || "");
+      const closeTime = Number.isFinite(closeTimestamp) ? closeTimestamp : null;
 
-      $("leanReason").textContent = reason;
-      $("leanStrength").textContent = strength;
-    }
-
-    function updateLean(snapshot, values) {
-      const {
+      return {
+        market,
         btc,
-        strike,
+        strike: findStrike(market),
         yesBid,
         yesAsk,
         noBid,
         noAsk,
         yesMid,
         closeTime
-      } = values;
+      };
+    }
 
-      if (strike == null || strike <= 0 || yesMid == null) {
-        setLean(
+    function setPick(label, reason, checklist) {
+      const badge = $("pickBadge");
+      const main = $("pickMain");
+
+      badge.textContent = label;
+      badge.className = "lean-badge" +
+        (label === "UP" ? " up" : label === "DOWN" ? " down" : "");
+
+      main.textContent = label === "WAIT" ? "WAIT" : `PICK ${label}`;
+      main.className = "lean-main" +
+        (label === "UP" ? " up" : label === "DOWN" ? " down" : " wait");
+
+      $("pickReason").textContent = reason;
+      $("checklistScore").textContent = checklist;
+    }
+
+    function calculateMomentum() {
+      if (btcPoints.length < 2) {
+        return { label: "Building samples", amount: null };
+      }
+
+      const latest = btcPoints[btcPoints.length - 1];
+      const targetTime = latest.time - 60_000;
+      let earlier = null;
+
+      for (let i = btcPoints.length - 1; i >= 0; i--) {
+        if (btcPoints[i].time <= targetTime) {
+          earlier = btcPoints[i];
+          break;
+        }
+      }
+
+      if (!earlier) earlier = btcPoints[0];
+
+      const amount = latest.value - earlier.value;
+      const elapsed = latest.time - earlier.time;
+
+      if (elapsed < 5000 || Math.abs(amount) < 0.01) {
+        return { label: "Flat / not enough movement", amount };
+      }
+
+      return {
+        label: amount > 0 ? "Up over recent samples" : "Down over recent samples",
+        amount
+      };
+    }
+
+    function updatePick(values, momentumInfo) {
+      const { btc, strike, yesBid, yesAsk, yesMid, closeTime } = values;
+
+      if (btc == null || strike == null || yesMid == null) {
+        setPick(
           "WAIT",
-          "The strike or YES market price is missing, so the dashboard cannot evaluate its checklist.",
-          "Not available"
+          "BTC price, market strike, or YES price is missing. Check the market details before using a directional signal.",
+          "Insufficient data"
         );
         return;
       }
 
-      const secondsLeft = closeTime == null
-        ? null
-        : Math.floor((closeTime - Date.now()) / 1000);
-
-      if (secondsLeft != null && secondsLeft <= 120) {
-        setLean(
+      if (lastSuccessfulPoll && Date.now() - lastSuccessfulPoll > MAX_SIGNAL_AGE_MS) {
+        setPick(
           "WAIT",
-          "The contract is within its final 2 minutes. The dashboard avoids showing a directional lean this close to expiry.",
-          "Late market"
+          "The relay data is not updating. Waiting for a fresh response before showing a directional lean.",
+          "Stale data"
         );
         return;
+      }
+
+      if (closeTime != null) {
+        const secondsLeft = Math.floor((closeTime - Date.now()) / 1000);
+
+        if (secondsLeft <= 120) {
+          setPick(
+            "WAIT",
+            "The contract is within its final 2 minutes. The dashboard avoids a directional pick this close to expiry.",
+            "Too close to expiry"
+          );
+          return;
+        }
       }
 
       const distanceFraction = Math.abs(btc - strike) / strike;
-      if (distanceFraction < 0.0003) {
-        setLean(
+      if (distanceFraction < NEAR_STRIKE_FRACTION) {
+        setPick(
           "WAIT",
-          "BTC is very close to the strike, so a small price move could change which side is above it.",
+          "BTC is very close to the strike. A small move could switch which side of the strike it is on.",
           "Near strike"
         );
         return;
       }
 
-      const yesSpread = yesBid != null && yesAsk != null ? yesAsk - yesBid : null;
-      const noSpread = noBid != null && noAsk != null ? noAsk - noBid : null;
-      const btcAboveStrike = btc > strike;
-
-      const upConditions =
-        btcAboveStrike &&
-        yesMid >= 0.55 &&
-        yesAsk != null &&
-        yesSpread != null &&
-        yesSpread <= 0.05;
-
-      const downConditions =
-        !btcAboveStrike &&
-        yesMid <= 0.45 &&
-        noAsk != null &&
-        noSpread != null &&
-        noSpread <= 0.05;
-
-      if (upConditions) {
-        const strength = yesMid >= 0.65 ? "Stronger alignment" : "Some alignment";
-        setLean(
-          "UP LEAN",
-          "BTC is above the strike and YES pricing agrees. This is a rule-based market snapshot, not a prediction.",
-          strength
+      if (yesBid == null || yesAsk == null) {
+        setPick(
+          "WAIT",
+          "The YES bid/ask is incomplete, so spread conditions cannot be checked.",
+          "Missing bid/ask"
         );
-      } else if (downConditions) {
-        const strength = yesMid <= 0.35 ? "Stronger alignment" : "Some alignment";
-        setLean(
-          "DOWN LEAN",
-          "BTC is below the strike and YES pricing agrees with that direction. This is not a prediction.",
-          strength
-        );
-      } else {
-        const btcSide = btcAboveStrike ? "above" : "below";
-        let reason = `BTC is ${btcSide} the strike, but the price, odds, or spread checks do not all agree.`;
-
-        if (yesSpread == null || noSpread == null) {
-          reason = "Bid/ask spread data is incomplete, so the dashboard is staying neutral.";
-        } else if (yesMid > 0.45 && yesMid < 0.55) {
-          reason = "YES pricing is near the middle; the market does not show a clear directional lean by these rules.";
-        } else if ((btcAboveStrike && yesMid < 0.55) || (!btcAboveStrike && yesMid > 0.45)) {
-          reason = "BTC position and YES market pricing point in different directions.";
-        } else {
-          reason = "One or more spread or quote checks did not pass.";
-        }
-
-        setLean("WAIT", reason, "Mixed / weak");
-      }
-    }
-
-    function drawChart() {
-      const svg = $("chart");
-      const width = 900;
-      const height = 300;
-      const left = 58;
-      const right = 18;
-      const top = 16;
-      const bottom = 36;
-      const plotWidth = width - left - right;
-      const plotHeight = height - top - bottom;
-      const now = Date.now();
-      const startTime = now - CHART_WINDOW_MS;
-
-      const visible = points
-        .filter(point =>
-          Number.isFinite(point.t) &&
-          Number.isFinite(point.v) &&
-          point.t >= startTime &&
-          point.t <= now + 2000
-        )
-        .slice(-MAX_POINTS);
-
-      const values = visible.map(point => point.v);
-      const rawMin = values.length ? Math.min(...values) : 0.5;
-      const rawMax = values.length ? Math.max(...values) : 0.5;
-      const padding = Math.max((rawMax - rawMin) * 0.2, 0.03);
-      const min = Math.max(0, rawMin - padding);
-      const max = Math.min(1, rawMax + padding);
-      const range = Math.max(max - min, 0.06);
-
-      const x = time =>
-        left + Math.max(0, Math.min(1, (time - startTime) / CHART_WINDOW_MS)) * plotWidth;
-
-      const y = value =>
-        top + ((max - value) / range) * plotHeight;
-
-      const grid = [0, 1, 2, 3].map(index => {
-        const gridY = top + (plotHeight * index) / 3;
-        const value = max - (range * index) / 3;
-        return `
-          <line x1="${left}" y1="${gridY}" x2="${width - right}" y2="${gridY}"
-                stroke="#263143"/>
-          <text x="${left - 9}" y="${gridY + 4}" text-anchor="end"
-                fill="#929db0" font-size="11">${Math.round(value * 100)}¢</text>
-        `;
-      }).join("");
-
-      const linePath = visible.map((point, index) =>
-        `${index === 0 ? "M" : "L"} ${x(point.t).toFixed(1)} ${y(point.v).toFixed(1)}`
-      ).join(" ");
-
-      const last = visible[visible.length - 1];
-      const first = visible[0];
-      const lineColor = last && first && last.v < first.v ? "#ff7482" : "#49dfa5";
-
-      const line = visible.length > 1
-        ? `<path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="3"
-                 stroke-linecap="round" stroke-linejoin="round"
-                 clip-path="url(#plotClip)"/>`
-        : "";
-
-      const point = last
-        ? `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="5"
-                   fill="${lineColor}" stroke="#111722" stroke-width="3"/>`
-        : "";
-
-      const waitingText = visible.length
-        ? ""
-        : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle"
-                   fill="#929db0" font-size="14">Waiting for price data…</text>`;
-
-      const startLabel = new Date(startTime).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit"
-      });
-
-      svg.innerHTML = `
-        <defs>
-          <clipPath id="plotClip">
-            <rect x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}"/>
-          </clipPath>
-        </defs>
-        ${grid}
-        ${line}
-        ${point}
-        ${waitingText}
-        <text x="${left}" y="${height - 8}" fill="#929db0" font-size="11">${startLabel}</text>
-        <text x="${width - right}" y="${height - 8}" text-anchor="end"
-              fill="#929db0" font-size="11">now</text>
-      `;
-    }
-
-    function updateClock() {
-      if (!currentSnapshot || !currentSnapshot.market) return;
-
-      const closeTime = Date.parse(currentSnapshot.market.close_time || "");
-      if (!Number.isFinite(closeTime)) {
-        $("clock").textContent = "--:--";
-        $("timeRemaining").textContent = "Unavailable";
         return;
       }
 
-      const seconds = Math.max(0, Math.floor((closeTime - Date.now()) / 1000));
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
+      const spread = yesAsk - yesBid;
+      if (spread < 0 || spread > 0.05) {
+        setPick(
+          "WAIT",
+          `The YES spread is ${cents(spread)}. The checklist requires a spread of 5¢ or less.`,
+          "Spread too wide"
+        );
+        return;
+      }
 
-      $("clock").textContent =
-        `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+      const isAboveStrike = btc > strike;
+      const alignedUp = isAboveStrike && yesMid >= 0.55;
+      const alignedDown = !isAboveStrike && yesMid <= 0.45;
 
-      $("timeRemaining").textContent =
-        `${minutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
+      if (alignedUp) {
+        setPick(
+          "UP",
+          "BTC is above the strike, YES pricing agrees, and the YES spread is 5¢ or less. This is a checklist lean, not a prediction.",
+          yesMid >= 0.65 ? "Strong rule alignment" : "Rule alignment"
+        );
+        return;
+      }
+
+      if (alignedDown) {
+        setPick(
+          "DOWN",
+          "BTC is below the strike, YES pricing agrees with DOWN, and the YES spread is 5¢ or less. This is a checklist lean, not a prediction.",
+          yesMid <= 0.35 ? "Strong rule alignment" : "Rule alignment"
+        );
+        return;
+      }
+
+      const reason = isAboveStrike
+        ? "BTC is above the strike, but YES pricing is not high enough to confirm the UP checklist."
+        : "BTC is below the strike, but YES pricing is not low enough to confirm the DOWN checklist.";
+
+      setPick("WAIT", reason, "Checks do not align");
     }
 
-    function render(snapshot) {
-      const market = snapshot.market;
-      const btc = Number(snapshot.btcPrice);
+    function updateMarketDisplay(values) {
+      const { market, btc, strike, yesBid, yesAsk, noBid, noAsk, yesMid, closeTime } = values;
 
-      if (!Number.isFinite(btc)) {
-        throw new Error("Relay returned an invalid BTC price.");
-      }
-
-      if (currentTicker !== market.ticker) {
+      if (market.ticker && market.ticker !== currentTicker) {
         currentTicker = market.ticker;
-        points = [];
+        btcPoints = [];
+        yesPoints = [];
+        lastBtcObservedChange = null;
+        lastYesObservedChange = null;
       }
 
-      currentSnapshot = snapshot;
+      currentCloseTime = closeTime;
+      const now = Date.now();
 
-      const yesBid = contractPrice(market, "yes", "bid");
-      const yesAsk = contractPrice(market, "yes", "ask");
-      const noBid = contractPrice(market, "no", "bid");
-      const noAsk = contractPrice(market, "no", "ask");
-      const yesMid = yesMidpoint(market);
-      const strike = readNumber(market, "floor_strike", "cap_strike");
-      const closeTimeValue = Date.parse(market.close_time || "");
-      const closeTime = Number.isFinite(closeTimeValue) ? closeTimeValue : null;
-      const timestamp = Number(snapshot.timestamp) || Date.now();
+      const btcChanged = addSample(btcPoints, now, btc);
+      const yesChanged = addSample(yesPoints, now, yesMid);
 
-      $("btc").textContent = formatMoney(btc);
-      $("btcLarge").textContent = formatMoney(btc);
-      $("marketTicker").textContent = market.ticker || "Current Kalshi market";
-      $("yesMid").textContent = formatCents(yesMid);
-      $("yesBidAsk").textContent = `${formatCents(yesBid)} / ${formatCents(yesAsk)}`;
-      $("noBidAsk").textContent = `${formatCents(noBid)} / ${formatCents(noAsk)}`;
-      $("strike").textContent = strike == null ? "Not provided" : formatMoney(strike);
+      if (btcChanged) lastBtcObservedChange = now;
+      if (yesChanged) lastYesObservedChange = now;
 
-      if (strike != null && strike > 0) {
+      lastBtcPrice = btc;
+      lastYesMid = yesMid;
+      latestValues = values;
+
+      $("subtitle").textContent = market.title || market.subtitle || "BTC 15-minute market";
+      $("marketTicker").textContent = market.ticker || "Kalshi market";
+      $("btc").textContent = money(btc);
+      $("btcLarge").textContent = money(btc);
+      $("strike").textContent = money(strike);
+
+      if (btc != null && strike != null) {
         const difference = btc - strike;
-        const percent = (difference / strike) * 100;
-        const prefix = difference > 0 ? "+" : "";
-        $("btcVsStrike").textContent =
-          `${prefix}${formatMoney(difference)} (${prefix}${percent.toFixed(3)}%)`;
-      } else {
-        $("btcVsStrike").textContent = "Not provided";
-      }
-
-      if (closeTime != null) {
-        $("subtitle").textContent =
-          `${market.ticker || "Current market"} · closes ${new Date(closeTime).toLocaleTimeString()}`;
-      } else {
-        $("subtitle").textContent = market.ticker || "Current market";
-      }
-
-      const yesSpread = yesBid != null && yesAsk != null ? yesAsk - yesBid : null;
-      const noSpread = noBid != null && noAsk != null ? noAsk - noBid : null;
-      const displayedSpread = yesSpread != null ? yesSpread : noSpread;
-
-      $("marketSpread").textContent = displayedSpread == null
-        ? "Unavailable"
-        : `${formatSpread(displayedSpread)}${yesSpread != null ? " YES" : " NO"}`;
-
-      $("yesOdds").textContent = yesMid == null
-        ? "Unavailable"
-        : `${Math.round(yesMid * 100)}¢ midpoint`;
-
-      const pointValue = yesMid;
-      if (pointValue != null && pointValue >= 0 && pointValue <= 1) {
-        const lastPoint = points[points.length - 1];
-
-        if (!lastPoint || timestamp > lastPoint.t) {
-          points.push({ t: timestamp, v: pointValue });
-        } else {
-          points[points.length - 1] = { t: timestamp, v: pointValue };
-        }
-
-        if (points.length > MAX_POINTS) {
-          points = points.slice(-MAX_POINTS);
-        }
-      }
-
-      if (strike != null && strike > 0 && btc > 0) {
-        const distancePct = Math.abs((btc - strike) / strike) * 100;
+        const side = difference > 0 ? "above" : difference < 0 ? "below" : "at";
+        $("btcVsStrike").textContent = `${side} by ${money(Math.abs(difference))}`;
         $("strikeDistance").textContent =
-          `${formatMoney(Math.abs(btc - strike))} (${distancePct.toFixed(3)}%)`;
+          `${money(Math.abs(difference))} ${side} strike`;
       } else {
+        $("btcVsStrike").textContent = "—";
         $("strikeDistance").textContent = "Unavailable";
       }
 
-      updateLean(snapshot, {
-        btc,
-        strike,
-        yesBid,
-        yesAsk,
-        noBid,
-        noAsk,
-        yesMid,
-        closeTime
-      });
+      $("yesBidAsk").textContent =
+        yesBid != null && yesAsk != null ? `${cents(yesBid)} / ${cents(yesAsk)}` : "—";
+      $("noBidAsk").textContent =
+        noBid != null && noAsk != null ? `${cents(noBid)} / ${cents(noAsk)}` : "—";
 
+      $("yesMid").textContent = cents(yesMid);
+      $("btcChartValue").textContent = money(btc);
+      $("yesChartValue").textContent = cents(yesMid);
+      $("sampleCount").textContent = `${btcPoints.length} BTC · ${yesPoints.length} YES`;
+
+      const spread = yesBid != null && yesAsk != null ? yesAsk - yesBid : null;
+      $("marketSpread").textContent = spread == null ? "Unavailable" : cents(spread);
+
+      const momentumInfo = calculateMomentum();
+      $("momentum").textContent = momentumInfo.amount == null
+        ? momentumInfo.label
+        : `${momentumInfo.label} (${signedMoney(momentumInfo.amount)})`;
+
+      const btcFirst = btcPoints[0];
+      const btcDelta = btcFirst && btc != null ? btc - btcFirst.value : null;
+      $("btcChange").textContent = btcDelta == null
+        ? "Building chart history"
+        : `${signedMoney(btcDelta)} since first visible sample`;
+
+      const yesFirst = yesPoints[0];
+      const yesDelta = yesFirst && yesMid != null ? yesMid - yesFirst.value : null;
+      $("yesChange").textContent = yesDelta == null
+        ? "Building chart history"
+        : `${yesDelta > 0 ? "+" : ""}${(yesDelta * 100).toFixed(1)}¢ since first visible sample`;
+
+      $("btcLastChange").textContent = lastBtcObservedChange
+        ? `Last BTC move ${relativeTime(now - lastBtcObservedChange)} ago`
+        : "No BTC change yet";
+      $("yesLastChange").textContent = lastYesObservedChange
+        ? `Last YES move ${relativeTime(now - lastYesObservedChange)} ago`
+        : "No YES change yet";
+
+      updatePick(values, momentumInfo);
       updateClock();
-      $("updated").textContent = new Date().toLocaleTimeString();
-      drawChart();
-      setStatus(true, "Market data connected");
-      showError("");
+      drawAllCharts();
     }
 
-    async function refresh() {
-      if (pollInProgress) return;
-      pollInProgress = true;
+    function relativeTime(milliseconds) {
+      const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+      if (seconds < 2) return "just now";
+      if (seconds < 60) return `${seconds}s`;
+      return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    }
 
-      try {
-        const snapshot = await getSnapshot();
-        render(snapshot);
-      } catch (error) {
-        setStatus(false, "Market data unavailable");
-        showError(error.message || "Could not load market data.");
-      } finally {
-        pollInProgress = false;
+    function updateClock() {
+      if (!currentCloseTime) {
+        $("clock").textContent = "--:--";
+        $("timeRemaining").textContent = "—";
+        return;
+      }
+
+      const remaining = Math.max(0, Math.floor((currentCloseTime - Date.now()) / 1000));
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
+      const display = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+      $("clock").textContent = display;
+      $("timeRemaining").textContent = remaining > 0 ? display : "Closed";
+
+      if (remaining <= 120 && latestValues) {
+        updatePick(latestValues, calculateMomentum());
       }
     }
 
-    refresh();
-    setInterval(refresh, POLL_INTERVAL_MS);
-    setInterval(updateClock, 1000);
+    function setupCanvas(canvasElement, context) {
+      const rect = canvasElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+
+      if (canvasElement.width !== width || canvasElement.height !== height) {
+        canvasElement.width = width;
+        canvasElement.height = height;
+      }
+
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { width: rect.width, height: rect.height };
+    }
+
+    function niceStep(range) {
+      if (!(range > 0)) return 1;
+      const rough = range / 4;
+      const power = Math.pow(10, Math.floor(Math.log10(rough)));
+      const fraction = rough / power;
+
+      if (fraction <= 1) return power;
+      if (fraction <= 2) return 2 * power;
+      if (fraction <= 5) return 5 * power;
+      return 10 * power;
+    }
+
+    function drawChart(canvasElement, context, points, options) {
+      const size = setupCanvas(canvasElement, context);
+      const width = size.width;
+      const height = size.height;
+      const left = 68;
+      const right = 12;
+      const top = 12;
+      const bottom = 25;
+      const plotW = Math.max(10, width - left - right);
+      const plotH = Math.max(10, height - top - bottom);
+
+      context.clearRect(0, 0, width, height);
+      context.font = "10px system-ui, sans-serif";
+      context.lineWidth = 1;
+
+      const now = Date.now();
+      const start = now - CHART_WINDOW_MS;
+      const visible = points.filter(point => point.time >= start && point.time <= now);
+
+      let min = options.fixedMin != null ? options.fixedMin : Infinity;
+      let max = options.fixedMax != null ? options.fixedMax : -Infinity;
+
+      if (options.fixedMin == null) {
+        for (const point of visible) {
+          min = Math.min(min, point.value);
+          max = Math.max(max, point.value);
+        }
+
+        if (!Number.isFinite(min) || !Number.isFinite(max)) {
+          min = options.defaultMin;
+          max = options.defaultMax;
+        } else {
+          const spread = max - min;
+          const padding = spread > 0 ? spread * 0.16 : Math.max(Math.abs(max) * 0.0002, 1);
+          min -= padding;
+          max += padding;
+        }
+      }
+
+      if (max <= min) max = min + 1;
+
+      const yFor = value => top + (max - value) / (max - min) * plotH;
+      const xFor = time => left + ((time - start) / CHART_WINDOW_MS) * plotW;
+
+      context.strokeStyle = "rgba(160, 174, 198, .12)";
+      context.fillStyle = "rgba(190, 200, 220, .62)";
+
+      const yStep = options.fixedMin != null ? 0.25 : niceStep(max - min);
+      const firstY = Math.ceil(min / yStep) * yStep;
+
+      for (let value = firstY; value <= max + yStep * 0.01; value += yStep) {
+        const y = yFor(value);
+        context.beginPath();
+        context.moveTo(left, y);
+        context.lineTo(width - right, y);
+        context.stroke();
+
+        context.textAlign = "right";
+        context.textBaseline = "middle";
+        context.fillText(options.formatAxis(value), left - 8, y);
+      }
+
+      const timeMarks = [0, 5, 10, 15];
+      context.textAlign = "center";
+      context.textBaseline = "top";
+
+      for (const minutesAgo of timeMarks) {
+        const timestamp = now - minutesAgo * 60_000;
+        const x = xFor(timestamp);
+
+        context.beginPath();
+        context.moveTo(x, top);
+        context.lineTo(x, top + plotH);
+        context.stroke();
+
+        const label = minutesAgo === 0 ? "Now" : `${minutesAgo}m`;
+        context.fillText(label, x, top + plotH + 7);
+      }
+
+      if (visible.length === 0) {
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "rgba(190, 200, 220, .58)";
+        context.fillText("Waiting for price changes…", left + plotW / 2, top + plotH / 2);
+        return;
+      }
+
+      const color = options.color;
+      const coords = visible.map(point => ({
+        x: xFor(point.time),
+        y: yFor(point.value)
+      }));
+
+      const gradient = context.createLinearGradient(0, top, 0, top + plotH);
+      gradient.addColorStop(0, options.fillTop);
+      gradient.addColorStop(1, options.fillBottom);
+
+      context.beginPath();
+      context.moveTo(coords[0].x, top + plotH);
+      context.lineTo(coords[0].x, coords[0].y);
+
+      for (let i = 1; i < coords.length; i++) {
+        const previous = coords[i - 1];
+        const current = coords[i];
+        const midX = (previous.x + current.x) / 2;
+        const midY = (previous.y + current.y) / 2;
+        context.quadraticCurveTo(previous.x, previous.y, midX, midY);
+      }
+
+      const last = coords[coords.length - 1];
+      context.lineTo(last.x, last.y);
+      context.lineTo(last.x, top + plotH);
+      context.closePath();
+      context.fillStyle = gradient;
+      context.fill();
+
+      context.beginPath();
+      context.moveTo(coords[0].x, coords[0].y);
+
+      if (coords.length === 1) {
+        context.lineTo(coords[0].x + 0.1, coords[0].y);
+      } else {
+        for (let i = 1; i < coords.length; i++) {
+          const previous = coords[i - 1];
+          const current = coords[i];
+          const midX = (previous.x + current.x) / 2;
+          const midY = (previous.y + current.y) / 2;
+          context.quadraticCurveTo(previous.x, previous.y, midX, midY);
+        }
+        context.lineTo(last.x, last.y);
+      }
+
+      context.strokeStyle = color;
+      context.lineWidth = 2;
+      context.lineJoin = "round";
+      context.lineCap = "round";
+      context.stroke();
+
+      context.beginPath();
+      context.arc(last.x, last.y, 3.5, 0, Math.PI * 2);
+      context.fillStyle = color;
+      context.fill();
+
+      context.beginPath();
+      context.arc(last.x, last.y, 7, 0, Math.PI * 2);
+      context.strokeStyle = options.dotHalo;
+      context.lineWidth = 1;
+      context.stroke();
+    }
+
+    function drawAllCharts() {
+      drawChart(btcCanvas, btcCtx, btcPoints, {
+        color: "#96a5ff",
+        fillTop: "rgba(150, 165, 255, .22)",
+        fillBottom: "rgba(150, 165, 255, 0)",
+        dotHalo: "rgba(150, 165, 255, .38)",
+        defaultMin: 0,
+        defaultMax: 1,
+        formatAxis: value => "$" + value.toLocaleString(undefined, {
+          maximumFractionDigits: 0
+        })
+      });
+
+      drawChart(yesCanvas, yesCtx, yesPoints, {
+        color: "#49dfa5",
+        fillTop: "rgba(73, 223, 165, .2)",
+        fillBottom: "rgba(73, 223, 165, 0)",
+        dotHalo: "rgba(73, 223, 165, .35)",
+        fixedMin: 0,
+        fixedMax: 1,
+        formatAxis: value => `${Math.round(value * 100)}¢`
+      });
+    }
+
+    async function poll() {
+      if (pollInProgress || document.hidden) return;
+
+      pollInProgress = true;
+
+      try {
+        const data = await fetchSnapshot();
+        const values = normalizeSnapshot(data);
+
+        consecutiveFailures = 0;
+        lastSuccessfulPoll = Date.now();
+        $("lastPoll").textContent = new Date(lastSuccessfulPoll).toLocaleTimeString();
+        showError("");
+        setStatus("ok", "Relay connected · checking every 2s");
+
+        updateMarketDisplay(values);
+      } catch (error) {
+        consecutiveFailures += 1;
+        const message = error && error.message ? error.message : "Could not load relay data.";
+        showError(message);
+
+        if (lastSuccessfulPoll && Date.now() - lastSuccessfulPoll < MAX_SIGNAL_AGE_MS) {
+          setStatus("warn", "Relay temporarily unavailable");
+        } else {
+          setStatus("bad", "Waiting for relay data");
+        }
+
+        if (latestValues) updatePick(latestValues, calculateMomentum());
+      } finally {
+        pollInProgress = false;
+        scheduleNextPoll();
+      }
+    }
+
+    function scheduleNextPoll() {
+      if (document.hidden) return;
+
+      const backoff = consecutiveFailures
+        ? Math.min(MAX_BACKOFF_MS, POLL_INTERVAL_MS * Math.pow(2, Math.min(consecutiveFailures, 4)))
+        : POLL_INTERVAL_MS;
+
+      window.setTimeout(poll, backoff);
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        poll();
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      drawAllCharts();
+    }, { passive: true });
+
+    if ("ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(drawAllCharts);
+      resizeObserver.observe(btcCanvas.parentElement);
+      resizeObserver.observe(yesCanvas.parentElement);
+    }
+
+    window.setInterval(() => {
+      updateClock();
+      drawAllCharts();
+    }, 1000);
+
+    drawAllCharts();
+    poll();
   </script>
 </body>
 </html>
