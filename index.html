@@ -627,12 +627,11 @@
     "use strict";
 
     /*
-      If the relay runs on a different host from this page, set RELAY_API_BASE
-      to that relay's base URL, for example:
-      window.RELAY_API_BASE = "https://your-relay.example.com";
-      Put that line immediately before this script, or change the value below.
+      Set this to your deployed relay service's base URL.
+      Do not include /api/snapshot at the end.
+      Example: https://your-relay.example.com
     */
-    const RELAY_API_BASE = window.RELAY_API_BASE || "";
+    const RELAY_API_BASE = "https://YOUR-RELAY-HOST";
     const SNAPSHOT_URL = `${RELAY_API_BASE.replace(/\/$/, "")}/api/snapshot`;
 
     const POLL_INTERVAL_MS = 6_000;
