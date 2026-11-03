@@ -417,7 +417,9 @@
     .dashboard-note{font-size:11px;color:var(--muted);margin:0 0 15px}
     @media(max-width:600px){.signal-duo{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-wrap:wrap}.support-card{padding:20px}}
     @media(prefers-reduced-motion:reduce){body::before,body::after{animation:none!important;transform:none!important}}
-  </style>
+  
+    .coin-nav{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.coin-tab{cursor:pointer;border:1px solid rgba(176,126,255,.28);background:rgba(36,19,67,.8);color:#d9c8f8;border-radius:12px;padding:12px 18px;font:inherit;font-weight:750;transition:.2s}.coin-tab:hover,.coin-tab.selected{background:linear-gradient(135deg,#6d37bd,#3c2375);color:#fff;border-color:#bd94ff;box-shadow:0 0 22px rgba(143,78,246,.2)}.scanner{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 20px}.scan-tile{border:1px solid rgba(167,118,255,.22);border-radius:14px;padding:12px;background:rgba(27,16,52,.82);color:#e8dfff;cursor:pointer;text-align:left;font:inherit}.scan-tile strong{display:block;font-size:14px}.scan-tile span{display:block;color:#bba9d9;font-size:11px;margin-top:5px}.scan-tile em{display:block;font-style:normal;font-weight:800;margin-top:5px}.scan-tile .up{color:#4ce6ac}.scan-tile .down{color:#ff8aa5}@media(max-width:600px){.scanner{grid-template-columns:1fr}.coin-tab{flex:1;padding:11px 8px}}
+</style>
 </head>
 
 <body>
@@ -441,6 +443,7 @@
       <button class="nav-tab" id="tabSupport" role="tab" aria-selected="false" aria-controls="pageSupport" type="button">Support</button>
     </nav>
     <div id="pageDashboard" class="tab-page" role="tabpanel" aria-labelledby="tabDashboard">
+<div class="coin-nav" role="group" aria-label="Choose crypto market"><button class="coin-tab selected" data-coin="BTC" type="button">₿ Bitcoin</button><button class="coin-tab" data-coin="ETH" type="button">Ξ Ethereum</button><button class="coin-tab" data-coin="SOL" type="button">◎ Solana</button></div><div id="scanner" class="scanner" aria-live="polite">Market scanner loading…</div>
     <section class="heading">
       <div>
         <h2>BTC market outlook</h2>
@@ -584,13 +587,13 @@
         <p id="bookStatus">Waiting for order book…</p>
       </article>
       <article class="card info-card">
-        <h3>$25 bankroll calculator · hypothetical only</h3>
+        <h3>$25 bankroll calculator · selected market · hypothetical only</h3>
         <div class="calculator"><label>Side <select id="calcSide"><option value="yes">YES</option><option value="no">NO</option></select></label><label>Budget ($) <input id="calcBudget" type="number" min="0" step="0.50" value="25"></label><label>Estimated fee / contract ($) <input id="calcFee" type="number" min="0" step="0.01" value="0"></label></div>
         <div id="calcOutput" class="advanced-metrics">Waiting for a tradable ask…</div>
         <p>Fees default to $0 for illustration only. Enter the actual fee shown by Kalshi; contract costs and available liquidity may change before execution.</p>
       </article>
       <article class="card info-card">
-        <h3>Prediction tracking and Discord alerts</h3>
+        <h3>BTC prediction tracking and Discord alerts</h3>
         <div id="predictionStats" class="advanced-metrics">Waiting for history…</div>
         <div id="predictionRows" class="prediction-list">No predictions recorded yet.</div>
         <p id="alertsStatus">Checking Discord alert configuration…</p>
@@ -618,7 +621,8 @@
 
     // Set this to your relay's base URL. Use "" if the page and relay share a host.
     const API_BASE = "https://kalshi-ai-backend.onrender.com"; // Render Node.js Web Service
-    const API_URL = `${API_BASE.replace(/\/+$/, "")}/api/snapshot`;
+    let API_URL = `${API_BASE.replace(/\/+$/, "")}/api/snapshot/BTC`;
+    let activeCoin = "BTC";
 
     const POLL_MS = 2_000;
     const CHART_WINDOW_MS = 15 * 60 * 1_000;
@@ -1160,6 +1164,7 @@
       polling = true;
 
       try {
+        const requestedCoin = activeCoin;
         const response = await fetch(API_URL, {
           method: "GET",
           cache: "no-store",
@@ -1172,8 +1177,9 @@
           throw new Error(data.error || `Relay returned HTTP ${response.status}.`);
         }
 
-        render(data);
+        if (requestedCoin === activeCoin) render(data);
       } catch (error) {
+        if (requestedCoin !== activeCoin) return;
         setConnection("bad", "Relay unavailable");
         showBanner(
           `${error.message} Check the API_BASE value and the relay's frontend CORS origin.`,
@@ -1326,6 +1332,40 @@
     if(window.matchMedia("(prefers-reduced-motion: no-preference)").matches){
       window.addEventListener("pointermove",e=>{document.body.style.setProperty("--mouse-x",e.clientX-window.innerWidth/2+"px");document.body.style.setProperty("--mouse-y",e.clientY-window.innerHeight/2+"px");},{passive:true});
     }
+
+    // Multi-market tabs and scanner: each coin uses its own independent server feed.
+    function selectCoin(symbol){
+      if(!["BTC","ETH","SOL"].includes(symbol))return;
+      activeCoin=symbol;API_URL=`${API_BASE.replace(/\/+$/, "")}/api/snapshot/${symbol}`;
+      btcPoints=[];yesPoints=[];marketTicker=null;latestSnapshot=null;
+      for(const button of document.querySelectorAll('.coin-tab')){const selected=button.dataset.coin===symbol;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));}
+      document.querySelector('.chart-card.btc .card-head h3').textContent=symbol+' spot price';
+      document.querySelector('.chart-card.btc .card-head p').textContent='Coinbase '+symbol+'-USD · 1-minute OHLC candles';
+      document.querySelector('.chart-card.yes .card-head h3').textContent='Kalshi '+symbol+' YES midpoint';
+      document.querySelector('.brand p').textContent=symbol+' spot · Kalshi 15-minute market';
+      $('btcValue').textContent='—';$('yesValue').textContent='—';$('subtitle').textContent='Connecting to '+symbol+' market';
+      if(!polling){clearTimeout(pollTimer);poll();}
+    }
+    document.querySelectorAll('.coin-tab').forEach(button=>button.addEventListener('click',()=>selectCoin(button.dataset.coin)));
+    async function refreshScanner(){
+      const root=$('scanner');const symbols=['BTC','ETH','SOL'];
+      const results=await Promise.all(symbols.map(async symbol=>{
+        try{const r=await fetch(`${API_BASE}/api/snapshot/${symbol}`,{cache:'no-store'});if(!r.ok)throw Error('Offline');return await r.json();}
+        catch(_){return {symbol,marketUsable:false};}
+      }));
+      root.replaceChildren();
+      for(let i=0;i<symbols.length;i++){
+        const d=results[i],symbol=symbols[i],lean=d.directionalLean||{},direction=d.marketUsable&&['UP','DOWN'].includes(lean.direction)?lean.direction:null;
+        const button=document.createElement('button');button.type='button';button.className='scan-tile';
+        const name=document.createElement('strong');name.textContent=symbol+' · '+(d.market?.ticker||'No active contract');
+        const price=document.createElement('span');price.textContent=d.btcPrice&& !d.btcStale?'Spot '+money(d.btcPrice):'Spot unavailable / stale';
+        const signal=document.createElement('em');signal.className=direction?direction.toLowerCase():'';signal.textContent=direction?'LEAN '+direction+' · '+lean.strength+'/100':'NO LIVE LEAN';
+        const detail=document.createElement('span');detail.textContent=direction?'Heuristic strength, not probability':(d.marketError||'No fresh eligible market');
+        button.append(name,price,signal,detail);button.addEventListener('click',()=>selectCoin(symbol));root.append(button);
+      }
+    }
+    refreshScanner();setInterval(refreshScanner,15000);
+
     poll();
   </script>
 </body>
