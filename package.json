@@ -1,8 +1,8 @@
 {
   "name": "btc-kalshi-dashboard",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Alerts-only BTC and Kalshi 15-minute market dashboard",
+  "description": "Alerts-only BTC and Kalshi 15-minute advanced heuristic dashboard",
   "main": "server.js",
   "scripts": {"start": "node server.js", "check": "node --check server.js"},
   "engines": {"node": ">=20"},

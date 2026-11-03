@@ -443,7 +443,7 @@
         <div class="signal-head">
           <div>
             <h3 class="signal-title">Market read</h3>
-            <p class="signal-caption">Rule-based checklist, not a probability</p>
+            <p class="signal-caption">Multi-factor heuristic · not a win probability</p>
           </div>
           <span class="badge" id="pickBadge">WAIT</span>
         </div>
@@ -494,7 +494,7 @@
       <article class="card info-card" id="advancedPanel">
         <h3>Advanced signal diagnostics</h3>
         <div class="advanced-metrics" id="advancedMetrics">Waiting for market history…</div>
-        <p>Experimental checklist score is <strong>not</strong> a calibrated win probability. Coinbase spot is not necessarily Kalshi’s settlement reference.</p>
+        <p>Heuristic indicator agreement is <strong>not</strong> a calibrated win probability. Coinbase spot is not necessarily Kalshi’s settlement reference.</p>
       </article>
       <article class="card info-card">
         <h3>Kalshi order book · top bid levels</h3>
@@ -1156,12 +1156,12 @@
       const label=pick==="UP"?"YES LEAN":pick==="DOWN"?"NO LEAN":"WAIT";
       $("pick").textContent=label;$("pick").className=`pick ${pick==="UP"?"yes":pick==="DOWN"?"no":""}`;
       $("pickBadge").textContent=label;$("pickBadge").className=`badge ${pick==="UP"?"yes":pick==="DOWN"?"no":""}`;
-      $("reason").textContent=s.reasons?.join(" · ")||(pick==="WAIT"?"Waiting for qualifying conditions.":"Experimental checklist agrees. Not a probability.");
+      $("reason").textContent=s.reasons?.join(" · ")||(pick==="WAIT"?"Waiting for qualifying conditions.":"Experimental multi-factor indicators agree. Not a probability.");
       $("momentum").textContent=s.momentum60==null?"Building history":signed(s.momentum60," bps");
       $("distance").textContent=s.distanceBps==null?"Unavailable":signed(s.distanceBps," bps");
       $("midpoint").textContent=quote(s.yesBid!=null&&s.yesAsk!=null?(s.yesBid+s.yesAsk)/2:null);
       $("spread").textContent=quote(s.spread);$("freshness").textContent=snapshot.marketUsable&&!snapshot.bookStale?"Fresh":"Stale / unavailable";
-      $("checklist").textContent=pick==="WAIT"?"No qualified alert":"Experimental score "+s.strength+"/100";
+      $("checklist").textContent=pick==="WAIT"?"No qualified alert":"Indicator agreement "+s.strength+"/100";
     };
     function metric(text){const el=document.createElement("span");el.textContent=text;return el;}
     function fillMetrics(id,labels){const root=$(id);root.replaceChildren(...labels.map(metric));}
@@ -1173,7 +1173,7 @@
     }
     for(const id of ["calcSide","calcBudget","calcFee"])$(id).addEventListener("input",calc);
     function enhance(snapshot){const s=snapshot.signal||{};
-      fillMetrics("advancedMetrics",["60s momentum: "+(s.momentum60==null?"—":signed(s.momentum60," bps")),"180s momentum: "+(s.momentum180==null?"—":signed(s.momentum180," bps")),"Volatility: "+(s.volatilityBps==null?"—":s.volatilityBps.toFixed(2)+" bps"),"Distance: "+(s.distanceBps==null?"—":signed(s.distanceBps," bps")),"Signal strength: "+(s.strength==null?"—":s.strength+"/100")]);
+      fillMetrics("advancedMetrics",["60s momentum: "+(s.momentum60==null?"—":signed(s.momentum60," bps")),"180s momentum: "+(s.momentum180==null?"—":signed(s.momentum180," bps")),"Volatility: "+(s.volatilityBps==null?"—":s.volatilityBps.toFixed(2)+" bps"),"Distance: "+(s.distanceBps==null?"—":signed(s.distanceBps," bps")),"Signal agreement (not probability): "+(s.strength==null?"—":s.strength+"/100"),"EMA 9 / 21: "+(s.ema9==null||s.ema21==null?"—":money(s.ema9)+" / "+money(s.ema21)),"RSI 14: "+(s.rsi14==null?"—":s.rsi14.toFixed(1)),"Book pressure: "+(s.bookPressure==null?"—":(s.bookPressure*100).toFixed(1)+"%"),"Expected move (volatility estimate): "+(s.expectedMoveBps==null?"—":s.expectedMoveBps.toFixed(2)+" bps"),"Distance / expected move: "+(s.normalizedDistance==null?"—":s.normalizedDistance.toFixed(2)),"Win probability: not calibrated","Estimated trading edge: unavailable"]);
       bookRows("bookYes",snapshot.orderbook?.yes);bookRows("bookNo",snapshot.orderbook?.no);
       $("bookStatus").textContent=snapshot.bookStale?"Book unavailable or stale: "+(snapshot.bookError||"waiting for updates"):"Live snapshot · "+ageLabel(snapshot.bookAgeMs);
       calc();

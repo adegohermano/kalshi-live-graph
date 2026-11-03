@@ -28,18 +28,106 @@ function pushHistory(arr,value,ts,windowMs=3600000){if(value===null)return;arr.p
 function trend(history,now,ms){const latest=history.at(-1);const older=[...history].reverse().find(p=>p.t<=now-ms && p.t>=now-ms-20000);return latest&&older&&older.value>0?(latest.value/older.value-1)*10000:null;}
 function volatility(history){const h=history.slice(-60);if(h.length<12)return null;const returns=[];for(let i=1;i<h.length;i++)if(h[i-1].value>0)returns.push(Math.log(h[i].value/h[i-1].value));if(!returns.length)return null;const mean=returns.reduce((a,b)=>a+b,0)/returns.length;return Math.sqrt(returns.reduce((a,b)=>a+(b-mean)**2,0)/returns.length)*10000;}
 function parseBook(data){const raw=data?.orderbook_fp;if(!raw)return null;const levels=(side)=>Array.isArray(raw[side])?raw[side].map(row=>({price:numeric(row?.[0]),size:numeric(row?.[1])})).filter(x=>x.price!==null&&x.price>=0&&x.price<=1&&x.size!==null&&x.size>=0).sort((a,b)=>b.price-a.price).slice(0,12):[];const yes=levels("yes_dollars"),no=levels("no_dollars");const yesBid=yes[0]?.price??null,noBid=no[0]?.price??null;return {yes,no,yesBid,noBid,yesAsk:noBid===null?null:1-noBid,noAsk:yesBid===null?null:1-yesBid};}
-async function getJSON(url){const r=await fetch(url,{headers:{Accept:"application/json","User-Agent":"btc-kalshi-dashboard/2.0"},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(`HTTP ${r.status} from ${new URL(url).hostname}`);return r.json();}
+async function getJSON(url){const r=await fetch(url,{headers:{Accept:"application/json","User-Agent":"btc-kalshi-dashboard/3.0"},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(`HTTP ${r.status} from ${new URL(url).hostname}`);return r.json();}
 function safeTicker(t){return /^[A-Za-z0-9_-]{3,120}$/.test(t||"")?t:null;}
 async function refreshBTC(){const data=await getJSON(`${COINBASE}/ticker`);const n=numeric(data?.price);if(n===null||n<=0)throw Error("Invalid Coinbase price");state.btcPrice=n;state.btcUpdatedAt=timeNow();pushHistory(state.btcHistory,n,state.btcUpdatedAt);}
 async function refreshMarket(){const url=new URL(`${KALSHI}/markets`);url.searchParams.set("series_ticker",SERIES);url.searchParams.set("status","open");url.searchParams.set("limit","200");const data=await getJSON(url);if(!Array.isArray(data.markets))throw Error("Unexpected Kalshi markets response");const now=timeNow();const candidates=data.markets.filter(m=>safeTicker(m.ticker)&&Date.parse(m.close_time)>now&&Date.parse(m.open_time||0)<=now).sort((a,b)=>Date.parse(a.close_time)-Date.parse(b.close_time));const next=candidates[0]||null;if(next?.ticker!==state.marketTicker){state.marketTicker=next?.ticker||null;state.orderbook=null;state.bookUpdatedAt=0;state.yesHistory=[];state.lastAlertKey="";}state.market=next;state.marketUpdatedAt=now;if(next){const mid=first(next,["yes_bid_dollars"]);if(mid!==null)pushHistory(state.yesHistory,mid,now);}}
 async function refreshBook(){const ticker=safeTicker(state.market?.ticker);if(!ticker){state.orderbook=null;return;}const data=await getJSON(`${KALSHI}/markets/${encodeURIComponent(ticker)}/orderbook`);if(state.market?.ticker!==ticker)return;const book=parseBook(data);if(!book)throw Error("Order book missing fixed-point bids");state.orderbook=book;state.bookUpdatedAt=timeNow();const mid=book.yesBid!==null&&book.yesAsk!==null?(book.yesBid+book.yesAsk)/2:null;pushHistory(state.yesHistory,mid,state.bookUpdatedAt);}
 async function refreshCandles(){const end=Math.floor(timeNow()/1000),start=end-3600;const u=new URL(`${COINBASE}/candles`);u.searchParams.set("granularity","60");u.searchParams.set("start",new Date(start*1000).toISOString());u.searchParams.set("end",new Date(end*1000).toISOString());const rows=await getJSON(u);if(!Array.isArray(rows))throw Error("Coinbase candles unavailable");state.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(x=>x!==null)).sort((a,b)=>a.t-b.t);state.candlesUpdatedAt=timeNow();}
-function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:2,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now)};}
-function calculateSignal(now){const m=state.market,b=state.orderbook,spot=state.btcPrice,strike=strikeOf(m);const secondsLeft=m?(Date.parse(m.close_time)-now)/1000:null;const momentum60=trend(state.btcHistory,now,60000),momentum180=trend(state.btcHistory,now,180000),vol=volatility(state.btcHistory);const distanceBps=strike&&spot?(spot/strike-1)*10000:null;const bid=b?.yesBid??quote(m,"yes","bid"),ask=b?.yesAsk??quote(m,"yes","ask");const spread=bid!==null&&ask!==null?ask-bid:null;const reasons=[];if(!m||!spot||!strike)reasons.push("Missing market, BTC price, or verified strike");if(!state.btcUpdatedAt||now-state.btcUpdatedAt>FRESH_BTC||!state.marketUpdatedAt||now-state.marketUpdatedAt>FRESH_MARKET)reasons.push("Stale market data");if(!b||now-state.bookUpdatedAt>FRESH_MARKET)reasons.push("Order book unavailable or stale");if(secondsLeft===null||secondsLeft<=120)reasons.push("Less than two minutes remain");if(momentum60===null||momentum180===null||vol===null)reasons.push("Building trend and volatility history");if(spread===null||spread<0||spread>0.05)reasons.push("Spread missing or wider than 5¢");if(distanceBps!==null&&Math.abs(distanceBps)<Math.max(3,(vol||0)*0.8))reasons.push("Price too close to strike for current volatility");let direction="WAIT",strength=null;if(!reasons.length){const up=[distanceBps>0,momentum60>0,momentum180>0,ask!==null&&ask>=0.5];const down=[distanceBps<0,momentum60<0,momentum180<0,bid!==null&&bid<=0.5];const u=up.filter(Boolean).length,d=down.filter(Boolean).length;strength=Math.round(100*Math.max(u,d)/4);if(u===4)direction="UP";else if(d===4)direction="DOWN";else reasons.push("Momentum, strike, and market pricing disagree");}return {direction,strength,reasons,momentum60,momentum180,volatilityBps:vol,distanceBps,spread,secondsLeft,yesBid:bid,yesAsk:ask,model:"experimental-checklist-v2",probability:null};}
+function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:3,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now)};}
+// All signal scores are heuristic agreement scores, NEVER calibrated probabilities.
+// Calibration requires independent historical outcomes and held-out validation.
+function ema(values,period){
+  if(values.length<period)return null;
+  const k=2/(period+1);let value=values.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(const price of values.slice(period))value=price*k+value*(1-k);
+  return value;
+}
+function rsi(values,period=14){
+  if(values.length<period+1)return null;
+  const recent=values.slice(-(period+1));let gain=0,loss=0;
+  for(let i=1;i<recent.length;i++){const diff=recent[i]-recent[i-1];gain+=Math.max(diff,0);loss+=Math.max(-diff,0);}
+  if(gain===0&&loss===0)return 50;
+  if(loss===0)return 100;
+  return 100-100/(1+gain/loss);
+}
+function bookPressure(book){
+  if(!book?.yes?.length||!book?.no?.length)return null;
+  // Compare contracts near best bids; only a weak signal, not directional probability.
+  const yesBest=book.yes[0].price,noBest=book.no[0].price;
+  const y=book.yes.filter(x=>yesBest-x.price<=0.05).reduce((n,x)=>n+x.size,0);
+  const n=book.no.filter(x=>noBest-x.price<=0.05).reduce((n,x)=>n+x.size,0);
+  return y+n>0?(y-n)/(y+n):null;
+}
+function realizedBpsPerSqrtSecond(history,now){
+  const points=history.filter(x=>x.t>=now-300000&&x.t<=now);
+  if(points.length<24||points.at(-1).t-points[0].t<120000)return null;
+  let variance=0,elapsed=0;
+  for(let i=1;i<points.length;i++){
+    const dt=(points[i].t-points[i-1].t)/1000;
+    if(dt<=0||dt>30)continue;
+    const ret=Math.log(points[i].value/points[i-1].value)*10000;
+    variance+=ret*ret;elapsed+=dt;
+  }
+  return elapsed>=90?Math.sqrt(variance/elapsed):null;
+}
+function calculateSignal(now){
+  const m=state.market,b=state.orderbook,spot=state.btcPrice,strike=strikeOf(m);
+  const secondsLeft=m?(Date.parse(m.close_time)-now)/1000:null;
+  const momentum60=trend(state.btcHistory,now,60000);
+  const momentum180=trend(state.btcHistory,now,180000);
+  const volatilityBps=volatility(state.btcHistory);
+  const sigmaPerSqrtSecond=realizedBpsPerSqrtSecond(state.btcHistory,now);
+  const distanceBps=strike&&spot?(spot/strike-1)*10000:null;
+  const yesBid=b?.yesBid??null,yesAsk=b?.yesAsk??null;
+  const noBid=b?.noBid??null,noAsk=b?.noAsk??null;
+  const spread=yesBid!==null&&yesAsk!==null?yesAsk-yesBid:null;
+  const candles=state.candles.filter(c=>c.t<=now&&c.t>=now-3600000);
+  const closes=candles.map(c=>c.close);
+  const ema9=ema(closes,9),ema21=ema(closes,21),rsi14=rsi(closes);
+  const pressure=bookPressure(b);
+  const expectedMoveBps=sigmaPerSqrtSecond!==null&&secondsLeft>0?sigmaPerSqrtSecond*Math.sqrt(secondsLeft):null;
+  const normalizedDistance=expectedMoveBps>0&&distanceBps!==null?distanceBps/expectedMoveBps:null;
+  const reasons=[];
+  if(!m||!spot||!strike||strike<=0)reasons.push("Missing market, spot or structured strike");
+  if(m?.market_type&&m.market_type!=="binary")reasons.push("Unsupported market type");
+  if(!state.btcUpdatedAt||now-state.btcUpdatedAt>FRESH_BTC||!state.marketUpdatedAt||now-state.marketUpdatedAt>FRESH_MARKET)reasons.push("BTC or market data stale");
+  if(!b||now-state.bookUpdatedAt>FRESH_MARKET)reasons.push("Order book stale or unavailable");
+  if(secondsLeft===null||secondsLeft<=120||secondsLeft>900)reasons.push("Outside supported 2–15 minute window");
+  if([momentum60,momentum180,sigmaPerSqrtSecond,normalizedDistance,ema9,ema21,rsi14,pressure].some(x=>x===null))reasons.push("Building sufficient indicator history");
+  if(spread===null||spread<0||spread>0.05||yesAsk===null||noAsk===null)reasons.push("Missing executable asks or spread above 5¢");
+  if(normalizedDistance!==null&&Math.abs(normalizedDistance)<0.35)reasons.push("Too close to strike relative to estimated remaining volatility");
+  // No quote-based win-probability: market prices are not ground-truth probabilities.
+  // Both sides must have valid executable asks; do not alert at extreme prices.
+  const scores={UP:0,DOWN:0};const votes=[];
+  function vote(label,value,weight){votes.push({label,value,weight});if(value>0)scores.UP+=weight;else if(value<0)scores.DOWN+=weight;}
+  if(distanceBps!==null)vote("Strike distance",Math.sign(distanceBps),3);
+  if(momentum60!==null)vote("60s momentum",Math.abs(momentum60)<1?0:Math.sign(momentum60),2);
+  if(momentum180!==null)vote("180s momentum",Math.abs(momentum180)<2?0:Math.sign(momentum180),2);
+  if(ema9!==null&&ema21!==null)vote("EMA 9/21",Math.sign(ema9-ema21),1);
+  if(rsi14!==null)vote("RSI 14",rsi14>55?1:rsi14<45?-1:0,1);
+  if(pressure!==null)vote("Order-book pressure",pressure>0.2?1:pressure< -0.2?-1:0,1);
+  const totalWeight=10;const leader=scores.UP>scores.DOWN?"UP":"DOWN";
+  const strength=Math.round(100*scores[leader]/totalWeight);
+  const opposing=scores[leader==="UP"?"DOWN":"UP"];
+  let direction="WAIT";
+  if(!reasons.length){
+    if(strength<80||opposing>1)reasons.push("Independent indicators do not agree strongly enough");
+    else if(leader==="UP"&&yesAsk>=0.90)reasons.push("YES ask is too expensive for an uncalibrated signal");
+    else if(leader==="DOWN"&&noAsk>=0.90)reasons.push("NO ask is too expensive for an uncalibrated signal");
+    else direction=leader;
+  }
+  return {direction,strength,reasons,momentum60,momentum180,volatilityBps,
+    sigmaPerSqrtSecond,expectedMoveBps,normalizedDistance,distanceBps,
+    ema9,ema21,rsi14,bookPressure:pressure,votes,scores,spread,secondsLeft,
+    yesBid,yesAsk,noBid,noAsk,model:"multi-factor-heuristic-v3",probability:null,
+    probabilityStatus:"Not calibrated; insufficient independent holdout validation",
+    edge:null,edgeStatus:"Unavailable without a validated probability model and actual fees"};
+}
 function loadPredictions(){try{const rows=JSON.parse(fs.readFileSync(DATA_FILE,"utf8"));if(Array.isArray(rows))state.predictions=rows.slice(-1000);}catch(e){if(e.code!=="ENOENT")console.warn("Could not load history:",e.message);}}
 function savePredictions(){try{fs.mkdirSync(DATA_DIR,{recursive:true});const tmp=DATA_FILE+".tmp";fs.writeFileSync(tmp,JSON.stringify(state.predictions.slice(-1000)));fs.renameSync(tmp,DATA_FILE);}catch(e){console.warn("History not persisted:",e.message);}}
-async function notifyDiscord(p){if(!WEBHOOK)return;try{const content=`📊 **Kalshi BTC 15m alert (experimental)**\n${p.direction} · ${p.ticker}\nBTC: $${p.btcPrice.toFixed(2)} · Strike: $${p.strike.toFixed(2)}\nYES bid/ask: ${Math.round(p.yesBid*100)}¢ / ${Math.round(p.yesAsk*100)}¢\nNo automatic trades. Verify market rules and fees.`;const r=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(8000)});if(!r.ok)console.warn("Discord webhook HTTP",r.status);}catch(e){console.warn("Discord webhook failed:",e.message);}}
-async function captureSignal(){const s=calculateSignal(timeNow()),m=state.market;if(s.direction==="WAIT"||!m)return;const key=`${m.ticker}:${s.direction}`;if(state.lastAlertKey===key)return;state.lastAlertKey=key;const record={id:`${m.ticker}:${Date.now()}`,ticker:m.ticker,direction:s.direction,createdAt:Date.now(),closeTime:m.close_time,btcPrice:state.btcPrice,strike:strikeOf(m),yesBid:s.yesBid,yesAsk:s.yesAsk,strength:s.strength,result:null,correct:null,status:"pending",model:s.model};state.predictions.push(record);state.predictions=state.predictions.slice(-1000);savePredictions();await notifyDiscord(record);}
+async function notifyDiscord(p){if(!WEBHOOK)return;try{const content=`📊 **Kalshi BTC 15m alert (experimental)**\n${p.direction} · ${p.ticker}\nBTC: $${p.btcPrice.toFixed(2)} · Strike: $${p.strike.toFixed(2)}\nYES bid/ask: ${Math.round(p.yesBid*100)}¢ / ${Math.round(p.yesAsk*100)}¢\nHeuristic agreement: ${p.strength}/100 (NOT a win probability)\nNo automatic trades. Verify market rules and fees.`;const r=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(8000)});if(!r.ok)console.warn("Discord webhook HTTP",r.status);}catch(e){console.warn("Discord webhook failed:",e.message);}}
+async function captureSignal(){const s=calculateSignal(timeNow()),m=state.market;if(s.direction==="WAIT"||!m)return;const key=`${m.ticker}:${s.direction}`;if(state.lastAlertKey===key)return;state.lastAlertKey=key;const record={id:`${m.ticker}:${Date.now()}`,ticker:m.ticker,direction:s.direction,createdAt:Date.now(),closeTime:m.close_time,btcPrice:state.btcPrice,strike:strikeOf(m),yesBid:s.yesBid,yesAsk:s.yesAsk,strength:s.strength,indicators:{momentum60:s.momentum60,momentum180:s.momentum180,rsi14:s.rsi14,normalizedDistance:s.normalizedDistance,bookPressure:s.bookPressure},entryAsk:s.direction==="UP"?s.yesAsk:s.noAsk,result:null,correct:null,status:"pending",model:s.model};state.predictions.push(record);state.predictions=state.predictions.slice(-1000);savePredictions();await notifyDiscord(record);}
 async function settlePending(){const pending=state.predictions.filter(p=>p.status==="pending"&&Date.parse(p.closeTime)<timeNow()-60000).slice(0,10);let changed=false;for(const p of pending){try{const d=await getJSON(`${KALSHI}/markets/${encodeURIComponent(p.ticker)}`);const result=d.market?.result;if(result==="yes"||result==="no"){p.result=result;p.correct=(p.direction==="UP"?"yes":"no")===result;p.status="settled";changed=true;}}catch(e){state.errors.settlement=e.message;}}if(changed)savePredictions();}
 function schedule(name,ms,fn){async function tick(){if(stopped)return;try{await fn();delete state.errors[name];}catch(e){state.errors[name]=e.message;console.warn(`${name}: ${e.message}`);}if(!stopped)setTimeout(tick,ms);}tick();}
 app.get("/healthz",(_req,res)=>res.json({ok:true,uptimeSeconds:Math.floor(process.uptime()),marketLoaded:!!state.market,btcLoaded:!!state.btcPrice,errors:state.errors}));
