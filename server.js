@@ -41,17 +41,24 @@ function sendToBrowsers(data) {
 function makeAuthHeaders() {
   const timestamp = Date.now().toString();
   const message = timestamp + "GET" + WS_PATH;
+  const privateKey = crypto.createPrivateKey(PRIVATE_KEY);
 
-  const signature = crypto.sign("sha256", Buffer.from(message), {
-    key: PRIVATE_KEY,
-    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-    saltLength: 32
-  }).toString("base64");
+  let signature;
+
+  if (privateKey.asymmetricKeyType === "ed25519") {
+    signature = crypto.sign(null, Buffer.from(message, "utf8"), privateKey);
+  } else {
+    signature = crypto.sign("sha256", Buffer.from(message, "utf8"), {
+      key: privateKey,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
+    });
+  }
 
   return {
     "KALSHI-ACCESS-KEY": API_KEY_ID,
     "KALSHI-ACCESS-TIMESTAMP": timestamp,
-    "KALSHI-ACCESS-SIGNATURE": signature
+    "KALSHI-ACCESS-SIGNATURE": signature.toString("base64")
   };
 }
 
