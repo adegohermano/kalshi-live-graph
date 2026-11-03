@@ -553,7 +553,7 @@
     "use strict";
 
     // Set this to your relay's base URL. Use "" if the page and relay share a host.
-    const API_BASE = location.hostname === "kalshi-live-graph-2.onrender.com" ? "https://kalshi-live-graph.onrender.com" : ""; // Separate frontend compatibility
+    const API_BASE = "https://kalshi-ai-backend.onrender.com"; // Render Node.js Web Service
     const API_URL = `${API_BASE.replace(/\/+$/, "")}/api/snapshot`;
 
     const POLL_MS = 2_000;
