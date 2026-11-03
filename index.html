@@ -325,6 +325,16 @@
       line-height: 1.65;
     }
 
+    .book-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:12px}
+    .book-row{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:12px}
+    .book-row span:last-child{color:var(--muted)}
+    .advanced-metrics{margin-top:12px;display:flex;flex-wrap:wrap;gap:9px;color:var(--text);font-size:12px}
+    .advanced-metrics span{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px}
+    .calculator{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+    .calculator label{display:grid;gap:5px;color:var(--muted);font-size:12px}
+    .calculator input,.calculator select{padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text);width:150px;max-width:100%}
+    .prediction-list{max-height:220px;overflow:auto;margin-top:12px;font-size:12px}
+    .prediction-list div{padding:8px 0;border-bottom:1px solid var(--line)}
     @media (max-width: 760px) {
       main { width: min(100% - 24px, 620px); padding-top: 18px; }
       .grid { grid-template-columns: 1fr; }
@@ -385,7 +395,7 @@
         <div class="card-head">
           <div>
             <h3>BTC spot price</h3>
-            <p>Coinbase BTC-USD · recent 15 minutes</p>
+            <p>Coinbase BTC-USD · live 1-minute OHLC candles, 15-minute view</p>
           </div>
           <span class="tag">SPOT</span>
         </div>
@@ -397,7 +407,7 @@
           <span class="chart-label">USD</span>
         </div>
         <div class="chart-wrap">
-          <canvas class="chart" id="btcChart" aria-label="BTC spot price chart"></canvas>
+          <canvas class="chart" id="btcChart" aria-label="BTC candlestick price chart"></canvas>
         </div>
         <div class="chart-foot">
           <span>Chart uses observed relay samples</span>
@@ -481,6 +491,30 @@
         </div>
       </article>
 
+      <article class="card info-card" id="advancedPanel">
+        <h3>Advanced signal diagnostics</h3>
+        <div class="advanced-metrics" id="advancedMetrics">Waiting for market history…</div>
+        <p>Experimental checklist score is <strong>not</strong> a calibrated win probability. Coinbase spot is not necessarily Kalshi’s settlement reference.</p>
+      </article>
+      <article class="card info-card">
+        <h3>Kalshi order book · top bid levels</h3>
+        <p>Kalshi publishes YES and NO bids. Asks are implied by the opposite-side best bid (1 − bid). Sizes are contract quantities.</p>
+        <div class="book-grid"><div><h4>YES bids</h4><div id="bookYes">Waiting…</div></div><div><h4>NO bids</h4><div id="bookNo">Waiting…</div></div></div>
+        <p id="bookStatus">Waiting for order book…</p>
+      </article>
+      <article class="card info-card">
+        <h3>$25 bankroll calculator · hypothetical only</h3>
+        <div class="calculator"><label>Side <select id="calcSide"><option value="yes">YES</option><option value="no">NO</option></select></label><label>Budget ($) <input id="calcBudget" type="number" min="0" step="0.50" value="25"></label><label>Estimated fee / contract ($) <input id="calcFee" type="number" min="0" step="0.01" value="0"></label></div>
+        <div id="calcOutput" class="advanced-metrics">Waiting for a tradable ask…</div>
+        <p>Fees default to $0 for illustration only. Enter the actual fee shown by Kalshi; contract costs and available liquidity may change before execution.</p>
+      </article>
+      <article class="card info-card">
+        <h3>Prediction tracking and Discord alerts</h3>
+        <div id="predictionStats" class="advanced-metrics">Waiting for history…</div>
+        <div id="predictionRows" class="prediction-list">No predictions recorded yet.</div>
+        <p id="alertsStatus">Checking Discord alert configuration…</p>
+        <p>Predictions are recorded once per direction per market and scored only from Kalshi’s settled result. This is observational tracking, not a backtest or proof of profitability.</p>
+      </article>
       <article class="card info-card">
         <h3>How the market read works</h3>
         <p><strong>YES lean:</strong> the checklist requires BTC to be above the detected strike, recent BTC momentum to be positive, the YES midpoint to be at least 55¢, a YES spread of 5¢ or less, fresh data, and more than 2 minutes remaining.</p>
@@ -498,7 +532,7 @@
     "use strict";
 
     // Set this to your relay's base URL. Use "" if the page and relay share a host.
-    const API_BASE = "https://kalshi-live-graph.onrender.com";
+    const API_BASE = location.hostname === "kalshi-live-graph-2.onrender.com" ? "https://kalshi-live-graph.onrender.com" : ""; // Separate frontend compatibility
     const API_URL = `${API_BASE.replace(/\/+$/, "")}/api/snapshot`;
 
     const POLL_MS = 2_000;
@@ -941,7 +975,7 @@
       latestSnapshot = snapshot;
 
       const market = snapshot.market || {};
-      const btcPrice = Number.isFinite(Number(snapshot.btcPrice))
+      const btcPrice = snapshot.btcPrice != null && Number.isFinite(Number(snapshot.btcPrice))
         ? Number(snapshot.btcPrice)
         : null;
 
@@ -952,6 +986,8 @@
       const yesMid = getYesMid(market, yesBid, yesAsk);
       const strike = getStrike(market);
       const sampleTime = Date.now();
+      if (Array.isArray(snapshot.btcHistory)) btcPoints = snapshot.btcHistory.filter(p => Number.isFinite(p.value));
+      if (Array.isArray(snapshot.yesHistory)) yesPoints = snapshot.yesHistory.filter(p => Number.isFinite(p.value));
       const ticker = market.ticker || market.event_ticker || "unknown";
 
       if (marketTicker && ticker !== marketTicker) {
@@ -959,8 +995,8 @@
       }
       marketTicker = ticker;
 
-      btcPoints = addSample(btcPoints, btcPrice, sampleTime);
-      yesPoints = addSample(yesPoints, yesMid, sampleTime);
+      if (!Array.isArray(snapshot.btcHistory)) btcPoints = addSample(btcPoints, btcPrice, sampleTime);
+      if (!Array.isArray(snapshot.yesHistory)) yesPoints = addSample(yesPoints, yesMid, sampleTime);
 
       $("btcValue").textContent = money(btcPrice);
       $("btcDetail").textContent = money(btcPrice);
@@ -1082,6 +1118,76 @@
     setInterval(() => {
       if (latestSnapshot) updateCountdown(latestSnapshot.market || {});
     }, 250);
+
+
+    // v2 enhancements: real exchange OHLC candles, order book, server-scored signals,
+    // prediction outcomes, and a read-only bankroll calculator.
+    const originalPriceDollars = priceDollars;
+    priceDollars = function(market, side, kind) {
+      const b = latestSnapshot?.orderbook;
+      const key = side + kind[0].toUpperCase() + kind.slice(1);
+      if (b && latestSnapshot?.bookStale === false && b[key] != null) return b[key];
+      return originalPriceDollars(market, side, kind);
+    };
+    function drawCandles(canvas,ctx,candles,strike){
+      const sz=resizeCanvas(canvas,ctx);if(!sz)return;
+      const {width:w,height:h}=sz;ctx.clearRect(0,0,w,h);
+      const end=Date.now(),start=end-15*60*1000;
+      const rows=candles.filter(c=>c.t>=start-60000&&c.t<=end&&Number.isFinite(c.close));
+      if(!rows.length){drawChart(canvas,ctx,btcPoints,"#49dfa5",v=>money(v,0));return;}
+      const top=14,bottom=h-25,left=12,right=w-12;
+      let lo=Math.min(...rows.map(c=>c.low),Number.isFinite(strike)?strike:Infinity),hi=Math.max(...rows.map(c=>c.high),Number.isFinite(strike)?strike:-Infinity);
+      const pad=(hi-lo)*.12||10;lo-=pad;hi+=pad;
+      const xx=t=>left+(t-start)/(end-start)*(right-left), yy=v=>top+(hi-v)/(hi-lo)*(bottom-top);
+      ctx.font="10px system-ui";ctx.fillStyle="#929db0";ctx.strokeStyle="rgba(160,174,198,.12)";
+      for(let i=0;i<4;i++){let y=top+i*(bottom-top)/3;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.fillText(money(hi-i*(hi-lo)/3,0),left+4,y+10);}
+      for(const c of rows){const x=xx(c.t),green=c.close>=c.open;ctx.strokeStyle=green?"#49dfa5":"#ff7482";ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x,yy(c.high));ctx.lineTo(x,yy(c.low));ctx.stroke();const a=yy(c.open),b=yy(c.close);ctx.fillRect(x-3,Math.min(a,b),6,Math.max(1,Math.abs(a-b)));}
+      if(Number.isFinite(strike)){const y=yy(strike);ctx.strokeStyle="#f5c76b";ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#f5c76b";ctx.fillText("Strike "+money(strike,0),left+5,Math.max(10,y-5));}
+      ctx.fillStyle="#929db0";ctx.fillText("15m ago",left,h-5);ctx.textAlign="right";ctx.fillText("now",right,h-5);ctx.textAlign="left";
+    }
+    const oldDrawAllCharts=drawAllCharts;
+    drawAllCharts=function(){
+      if(Array.isArray(latestSnapshot?.candles)&&latestSnapshot.candles.length)drawCandles(btcCanvas,btcCtx,latestSnapshot.candles,getStrike(latestSnapshot.market));
+      else drawChart(btcCanvas,btcCtx,btcPoints,"#49dfa5",v=>money(v,0));
+      drawChart(yesCanvas,yesCtx,yesPoints,"#96a5ff",v=>quote(v),true);
+    };
+    updatePick=function({snapshot}){
+      const s=snapshot?.signal||{},pick=s.direction||"WAIT";
+      const label=pick==="UP"?"YES LEAN":pick==="DOWN"?"NO LEAN":"WAIT";
+      $("pick").textContent=label;$("pick").className=`pick ${pick==="UP"?"yes":pick==="DOWN"?"no":""}`;
+      $("pickBadge").textContent=label;$("pickBadge").className=`badge ${pick==="UP"?"yes":pick==="DOWN"?"no":""}`;
+      $("reason").textContent=s.reasons?.join(" · ")||(pick==="WAIT"?"Waiting for qualifying conditions.":"Experimental checklist agrees. Not a probability.");
+      $("momentum").textContent=s.momentum60==null?"Building history":signed(s.momentum60," bps");
+      $("distance").textContent=s.distanceBps==null?"Unavailable":signed(s.distanceBps," bps");
+      $("midpoint").textContent=quote(s.yesBid!=null&&s.yesAsk!=null?(s.yesBid+s.yesAsk)/2:null);
+      $("spread").textContent=quote(s.spread);$("freshness").textContent=snapshot.marketUsable&&!snapshot.bookStale?"Fresh":"Stale / unavailable";
+      $("checklist").textContent=pick==="WAIT"?"No qualified alert":"Experimental score "+s.strength+"/100";
+    };
+    function metric(text){const el=document.createElement("span");el.textContent=text;return el;}
+    function fillMetrics(id,labels){const root=$(id);root.replaceChildren(...labels.map(metric));}
+    function bookRows(id,levels){const root=$(id);root.replaceChildren();if(!levels?.length){root.textContent="No resting bids";return;}for(const x of levels.slice(0,8)){const r=document.createElement("div");r.className="book-row";const p=document.createElement("strong"),q=document.createElement("span");p.textContent=quote(x.price);q.textContent=x.size.toLocaleString()+" contracts";r.append(p,q);root.append(r);}}
+    function calc(){const b=latestSnapshot?.orderbook,side=$("calcSide").value,budget=Number($("calcBudget").value),fee=Number($("calcFee").value);const ask=b?.[side+"Ask"];
+      if(latestSnapshot?.bookStale||ask==null||ask<=0||ask>=1||!Number.isFinite(budget)||budget<0||!Number.isFinite(fee)||fee<0){fillMetrics("calcOutput",["Waiting for valid live ask and calculator inputs"]);return;}
+      const count=Math.max(0,Math.floor(budget/(ask+fee))),cost=count*(ask+fee),payout=count,profit=payout-cost;
+      fillMetrics("calcOutput",["Entry ask: "+quote(ask),"Contracts: "+count,"Est. total cost: "+money(cost),"Payout if correct: "+money(payout),"Est. net if correct: "+money(profit),"Max loss: "+money(cost)]);
+    }
+    for(const id of ["calcSide","calcBudget","calcFee"])$(id).addEventListener("input",calc);
+    function enhance(snapshot){const s=snapshot.signal||{};
+      fillMetrics("advancedMetrics",["60s momentum: "+(s.momentum60==null?"—":signed(s.momentum60," bps")),"180s momentum: "+(s.momentum180==null?"—":signed(s.momentum180," bps")),"Volatility: "+(s.volatilityBps==null?"—":s.volatilityBps.toFixed(2)+" bps"),"Distance: "+(s.distanceBps==null?"—":signed(s.distanceBps," bps")),"Signal strength: "+(s.strength==null?"—":s.strength+"/100")]);
+      bookRows("bookYes",snapshot.orderbook?.yes);bookRows("bookNo",snapshot.orderbook?.no);
+      $("bookStatus").textContent=snapshot.bookStale?"Book unavailable or stale: "+(snapshot.bookError||"waiting for updates"):"Live snapshot · "+ageLabel(snapshot.bookAgeMs);
+      calc();
+    }
+    const originalRender=render;
+    render=function(snapshot){originalRender(snapshot);enhance(snapshot);};
+    async function refreshTracking(){try{const [pr,cr]=await Promise.all([fetch(`${API_BASE}/api/predictions`,{cache:"no-store"}),fetch(`${API_BASE}/api/config`,{cache:"no-store"})]);if(!pr.ok||!cr.ok)return;const p=await pr.json(),c=await cr.json();
+      fillMetrics("predictionStats",["Signals: "+p.stats.total,"Settled: "+p.stats.settled,"Correct: "+p.stats.wins,"Observed win rate: "+(p.stats.winRate==null?"—":(p.stats.winRate*100).toFixed(1)+"%")]);
+      const root=$("predictionRows");root.replaceChildren();if(!p.rows.length)root.textContent="No signals recorded yet.";
+      for(const r of p.rows.slice(0,20)){const el=document.createElement("div");el.textContent=`${new Date(r.createdAt).toLocaleString()} · ${r.ticker} · ${r.direction} · ${r.status}${r.correct==null?"":r.correct?" · correct":" · incorrect"}`;root.append(el);}
+      $("alertsStatus").textContent=c.alertsConfigured?"Discord webhook configured. Alerts fire once per qualifying direction per market.":"Discord alerts off: set DISCORD_WEBHOOK_URL on Render.";
+      if(!p.persistent)$("alertsStatus").textContent+=" History storage is ephemeral until DATA_DIR points to a persistent Render disk.";
+    }catch(e){$("alertsStatus").textContent="Tracking API unavailable: "+e.message;}}
+    refreshTracking();setInterval(refreshTracking,15000);
 
     poll();
   </script>
