@@ -423,6 +423,10 @@
 /* Galaxy Pro additions */
 .pro-panel{margin:16px 0;padding:20px}.pro-panel h3{margin:0 0 5px;font-size:16px}.pro-muted{font-size:12px;color:var(--muted);margin:4px 0 12px}.pro-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pro-box{padding:15px;border-radius:13px;border:1px solid rgba(185,141,255,.2);background:rgba(31,17,57,.62);min-width:0}.pro-box strong{display:block;font-size:18px}.pro-box small{color:#bcaad9}.pro-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.pro-actions label{display:grid;gap:4px;font-size:12px;color:#d5c7ec}.pro-actions input,.pro-actions select{width:145px;max-width:100%;background:#201337;color:#fff;border:1px solid #6e4c9b;border-radius:9px;padding:9px}.pro-btn{background:linear-gradient(120deg,#8a4bdc,#5c2ca6);border:1px solid #b98df6;border-radius:10px;padding:10px 14px;color:#fff;cursor:pointer;font-weight:700}.pro-btn:disabled{opacity:.4;cursor:not-allowed}.pro-table{width:100%;border-collapse:collapse;font-size:12px}.pro-table th,.pro-table td{text-align:left;padding:9px;border-bottom:1px solid rgba(177,138,228,.2)}.pro-scroll{overflow-x:auto}.pro-status{min-height:20px;font-size:12px;color:#d5b8ff;margin-top:10px}.pro-panel[hidden]{display:none!important}@media(max-width:750px){.pro-grid{grid-template-columns:1fr}.pro-panel{padding:15px}}
 body.low-motion::before,body.low-motion::after{animation:none!important;transition:none!important}
+  .live-datetime{font-variant-numeric:tabular-nums;font-weight:700;color:#e9d9ff;letter-spacing:.01em;white-space:nowrap;padding:8px 11px;border:1px solid rgba(176,124,255,.3);border-radius:12px;background:rgba(98,46,164,.13)}
+  .connection{flex-wrap:wrap}.live-datetime{margin-right:10px}
+  .wl-win{color:var(--green);font-weight:800}.wl-loss{color:var(--red);font-weight:800}.wl-pending{color:var(--amber);font-weight:700}
+  @media(max-width:600px){.live-datetime{order:-1;width:100%;margin:0 0 6px;text-align:right}.connection{max-width:100%}}
 </style>
 </head>
 
@@ -437,6 +441,7 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
         </div>
       </div>
       <div class="connection">
+        <div class="live-datetime" id="liveDateTime" aria-label="Local date and time">Loading local time…</div>
         <span class="dot" id="statusDot"></span>
         <span id="statusText">Connecting to relay</span>
       </div>
@@ -608,6 +613,11 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       <article class="card info-card">
         <h3>BTC prediction tracking and Discord alerts</h3>
         <div id="predictionStats" class="advanced-metrics">Waiting for history…</div>
+        <h4 style="margin:18px 0 4px">Coinbase Trend model · W/L tracker</h4>
+        <div id="trendStats" class="advanced-metrics">Waiting for tracked predictions…</div>
+        <div id="trendRows" class="prediction-list">No tracked model predictions yet.</div>
+        <p>Records a UP/DOWN call before expiry, then checks Kalshi's official settlement. WAIT is excluded. Only predictions recorded since this feature was enabled count.</p>
+        <h4 style="margin:18px 0 4px">Original conservative signal history</h4>
         <div id="predictionRows" class="prediction-list">No predictions recorded yet.</div>
         <p id="alertsStatus">Local prediction tracking active</p>
         <p>Predictions are recorded once per direction per market and scored only from Kalshi’s settled result. This is observational tracking, not a backtest or proof of profitability.</p>
@@ -1292,6 +1302,33 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       if(!p.persistent)$("alertsStatus").textContent+=" History storage is ephemeral until DATA_DIR points to a persistent Render disk.";
     }catch(e){$("alertsStatus").textContent="Tracking API unavailable: "+e.message;}}
     refreshTracking();setInterval(refreshTracking,15000);
+    function updateLiveDateTime(){
+      const el=$('liveDateTime');if(!el)return;
+      const now=new Date();
+      el.textContent=new Intl.DateTimeFormat(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'}).format(now);
+    }
+    updateLiveDateTime();setInterval(updateLiveDateTime,1000);
+    async function refreshTrendResults(){
+      try{
+        const r=await fetch(`${API_BASE}/api/trend-results`,{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const data=await r.json(),stats=data.stats||{};
+        fillMetrics('trendStats',[`Wins: ${stats.wins??0}`,`Losses: ${stats.losses??0}`,`Pending: ${stats.pending??0}`,`Settled: ${stats.settled??0}`,`Observed W/L rate: ${stats.winRate==null?'—':(stats.winRate*100).toFixed(1)+'%'}`]);
+        const root=$('trendRows');root.replaceChildren();
+        if(!data.rows?.length){root.textContent='No tracked calls yet. New qualified model calls will be recorded before market close.';return;}
+        for(const p of data.rows.slice(0,30)){
+          const row=document.createElement('div');
+          const result=document.createElement('strong');
+          const win=p.status==='settled'&&p.correct===true,loss=p.status==='settled'&&p.correct===false;
+          result.className=win?'wl-win':loss?'wl-loss':'wl-pending';
+          result.textContent=win?' W':loss?' L':' PENDING';
+          row.textContent=`${new Date(p.createdAt).toLocaleString()} · ${p.symbol||'BTC'} · ${p.direction} · ${p.ticker} ·`;
+          row.append(result);root.append(row);
+        }
+      }catch(e){$('trendRows').textContent='Trend results unavailable: '+e.message;}
+    }
+    refreshTrendResults();setInterval(refreshTrendResults,15000);
+
 
 
     function renderOpinions(snapshot){

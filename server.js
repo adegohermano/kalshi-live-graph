@@ -308,6 +308,30 @@ app.get('/api/markets',(_req,res)=>res.json({symbols:['BTC','ETH','SOL'],series:
 app.get('/api/snapshot/:symbol',(req,res)=>{const symbol=String(req.params.symbol).toUpperCase();res.set('Cache-Control','no-store');if(symbol==='BTC')return res.json({...snapshot(),symbol:'BTC',opinions:independentOpinions()});if(!extraStates[symbol])return res.status(404).json({error:'Unsupported symbol'});res.json(extraSnapshot(symbol));});
 for(const symbol of Object.keys(EXTRA_MARKETS))for(const [kind,ms] of [['price',BTC_INTERVAL],['market',MARKET_INTERVAL],['book',MARKET_INTERVAL],['candles',CANDLES_INTERVAL]])schedule(`${symbol}_${kind}`,ms,()=>extraRefresh(symbol,kind));
 
+// Record each Coinbase Trend / EMA-RSI model call before settlement, never retroactively.
+// One prediction per market and coin; WAIT is not a prediction.
+function captureTrendPredictions(){
+  const now=Date.now();
+  for(const symbol of ['BTC','ETH','SOL']){
+    const snap=symbol==='BTC'?{...snapshot(),opinions:independentOpinions(now)}:extraSnapshot(symbol);
+    const m=snap.market, opinion=snap.opinions?.ai;
+    if(!m?.ticker || !snap.marketUsable || !opinion || !['UP','DOWN'].includes(opinion.direction) || opinion.status!=='ready')continue;
+    const remaining=(Date.parse(m.close_time)-now)/1000;
+    if(!Number.isFinite(remaining)||remaining<=120||remaining>900)continue;
+    if(state.predictions.some(p=>p.ticker===m.ticker&&p.model==='coinbase-trend-tracker-v1'))continue;
+    state.predictions.push({id:`trend:${m.ticker}:${now}`,symbol,ticker:m.ticker,model:'coinbase-trend-tracker-v1',direction:opinion.direction,createdAt:now,closeTime:m.close_time,btcPrice:snap.btcPrice,strike:strikeOf(m),result:null,correct:null,status:'pending',reason:opinion.reason||''});
+    state.predictions=state.predictions.slice(-1000);
+    savePredictions();
+  }
+}
+app.get('/api/trend-results',(_req,res)=>{
+  res.set('Cache-Control','no-store');
+  const rows=state.predictions.filter(p=>p.model==='coinbase-trend-tracker-v1').slice(-100).reverse();
+  const settled=rows.filter(p=>p.status==='settled');
+  const wins=settled.filter(p=>p.correct===true).length;
+  res.json({rows,stats:{total:rows.length,settled:settled.length,wins,losses:settled.length-wins,pending:rows.length-settled.length,winRate:settled.length?wins/settled.length:null},persistent:!!process.env.DATA_DIR});
+});
+schedule('trend_predictions',15000,captureTrendPredictions);
 app.use((_req,res)=>res.status(404).json({error:"Not found"}));
 loadPredictions();
 schedule("btc",BTC_INTERVAL,refreshBTC);
