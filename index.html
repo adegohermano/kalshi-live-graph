@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080b12">
+<title>BTC 15-Minute Market Signal</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #080b12;
+  --card: #111722;
+  --line: rgba(160,174,198,.14);
+  --text: #f2f5fa;
+  --muted: #8b97aa;
+  --green: #49dfa5;
+  --red: #ff7482;
+  --amber: #f5c76b;
+  --blue: #96a5ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(ellipse at 50% -15%,rgba(79,100,189,.17),transparent 48%),var(--bg);
+  font: 14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+main { width: min(1080px,calc(100% - 32px)); margin: auto; padding: 28px 0 42px; }
+.topbar,.heading,.card-head,.signal-row,.signal-foot,.metric,.chart-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+}
+.topbar { margin-bottom: 28px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-icon {
+  width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px;
+  color: #d2d9ff; background: rgba(150,165,255,.12); border: 1px solid rgba(150,165,255,.2);
+  font-weight: 800; font-size: 18px;
+}
+.brand h1 { margin: 0; font-size: 15px; letter-spacing: -.02em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.connection { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #667085; }
+.dot.ok { background: var(--green); box-shadow: 0 0 0 4px rgba(73,223,165,.12); }
+.dot.wait { background: var(--amber); box-shadow: 0 0 0 4px rgba(245,199,107,.12); }
+.dot.bad { background: var(--red); box-shadow: 0 0 0 4px rgba(255,116,130,.12); }
+.heading { align-items: flex-end; margin-bottom: 18px; }
+.heading h2 { margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.045em; }
+.heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+.clock {
+  padding: 8px 12px; white-space: nowrap; border: 1px solid var(--line);
+  border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.025); font-size: 12px;
+}
+.clock strong { margin-left: 6px; color: var(--text); font-variant-numeric: tabular-nums; }
+.error {
+  display: none; margin: 0 0 14px; padding: 11px 14px; border-radius: 12px;
+  border: 1px solid rgba(255,116,130,.25); color: #ffb4bc; background: rgba(255,116,130,.08);
+}
+.layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(275px,1fr); gap: 15px; }
+.card {
+  min-width: 0; border: 1px solid var(--line); border-radius: 18px;
+  background: linear-gradient(155deg,rgba(255,255,255,.035),transparent 45%),var(--card);
+  box-shadow: 0 18px 48px rgba(0,0,0,.2);
+}
+.signal-card { min-height: 220px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+.label { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.signal-row { margin: 20px 0 14px; }
+.signal { font-size: clamp(42px,7vw,66px); line-height: 1; font-weight: 760; letter-spacing: -.07em; }
+.signal.up { color: var(--green); }
+.signal.down { color: var(--red); }
+.signal.wait { color: var(--amber); }
+.signal-icon {
+  width: 56px; height: 56px; flex: 0 0 56px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 17px; color: var(--muted);
+  background: rgba(255,255,255,.025); font-size: 24px;
+}
+.signal-icon.up { color: var(--green); border-color: rgba(73,223,165,.2); background: rgba(73,223,165,.08); }
+.signal-icon.down { color: var(--red); border-color: rgba(255,116,130,.2); background: rgba(255,116,130,.08); }
+.signal-copy { max-width: 590px; color: var(--muted); font-size: 13px; }
+.signal-foot { padding-top: 14px; border-top: 1px solid var(--line); }
+.note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.note-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+.edge { color: var(--muted); font-size: 11px; }
+.edge strong { margin-left: 7px; color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+.metrics { grid-column: 2; grid-row: 1 / span 2; align-self: start; padding: 19px; }
+.metrics h3,.chart-head h3 { margin: 0; font-size: 14px; }
+.metric { padding: 13px 0; border-bottom: 1px solid var(--line); }
+.metric:last-child { border-bottom: 0; }
+.metric-label { color: var(--muted); font-size: 12px; }
+.metric-value { text-align: right; font-weight: 650; font-size: 13px; font-variant-numeric: tabular-nums; }
+.metric-value.up { color: var(--green); }
+.metric-value.down { color: var(--red); }
+.chart-card { grid-column: 1; padding: 19px 20px 15px; }
+.chart-head { align-items: flex-start; }
+.chart-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.tabs { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: #0b1019; }
+.tabs button {
+  padding: 5px 8px; border: 0; border-radius: 6px; color: var(--muted);
+  background: transparent; cursor: pointer; font-size: 10px;
+}
+.tabs button.active { color: var(--text); background: #20293a; }
+.chart-wrap { position: relative; height: 255px; margin-top: 14px; }
+#chart { display: block; width: 100%; height: 100%; overflow: visible; touch-action: pan-y; }
+.tooltip {
+  display: none; position: absolute; z-index: 2; min-width: 112px; padding: 8px 10px;
+  pointer-events: none; border: 1px solid rgba(180,192,216,.2); border-radius: 9px;
+  background: #171e2b; box-shadow: 0 8px 24px rgba(0,0,0,.3); font-size: 11px;
+}
+.tooltip strong { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tooltip span { color: var(--muted); }
+.chart-foot { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.market-card { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 17px 20px; }
+.market-stat + .market-stat { padding-left: 16px; border-left: 1px solid var(--line); }
+.market-stat span,.market-stat small { display: block; color: var(--muted); font-size: 11px; }
+.market-stat strong { display: block; margin: 4px 0 1px; font-size: 20px; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.market-stat small { font-size: 10px; }
+footer { margin-top: 17px; color: var(--muted); font-size: 11px; line-height: 1.65; }
+@media(max-width:740px) {
+  main { width: min(100% - 24px,560px); padding-top: 20px; }
+  .layout { grid-template-columns: 1fr; }
+  .metrics,.chart-card,.market-card { grid-column: 1; grid-row: auto; }
+  .metrics { order: 2; }
+  .chart-card { order: 3; }
+  .market-card { order: 4; }
+  .chart-wrap { height: 220px; }
+}
+@media(max-width:420px) {
+  .heading h2 { font-size: 22px; }
+  .signal-card,.metrics,.chart-card { padding: 17px; }
+  .clock { padding: 7px 9px; font-size: 10px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">₿</div>
+      <div><h1>Market Signal</h1><p>BTC · 15-minute market</p></div>
+    </div>
+    <div class="connection"><span class="dot wait" id="statusDot"></span><span id="statusText">Connecting to market data</span></div>
+  </header>
+
+  <section class="heading">
+    <div><h2>BTC market outlook</h2><p id="subtitle">Loading current market</p></div>
+    <div class="clock">Market closes<strong id="clock">--:--</strong></div>
+  </section>
+
+  <div class="error" id="error"></div>
+
+  <section class="layout">
+    <article class="card signal-card">
+      <div>
+        <div class="label">Model signal</div>
+        <div class="signal-row">
+          <div class="signal wait" id="signal">Loading</div>
+          <div class="signal-icon" id="signalIcon">…</div>
+        </div>
+        <div class="signal-copy" id="explanation">Fetching BTC and Kalshi data…</div>
+      </div>
+      <div class="signal-foot">
+        <div class="note"><span class="note-dot"></span><span>Estimate only · not a guarantee</span></div>
+        <div class="edge">Estimated edge<strong id="edge">—</strong></div>
+      </div>
+    </article>
+
+    <article class="card metrics">
+      <h3>Market details</h3>
+      <div class="metric"><span class="metric-label">BTC spot price</span><span class="metric-value" id="btc">—</span></div>
+      <div class="metric"><span class="metric-label">Strike to beat</span><span class="metric-value" id="strike">—</span></div>
+      <div class="metric"><span class="metric-label">Distance from strike</span><span class="metric-value" id="distance">—</span></div>
+      <div class="metric"><span class="metric-label">Model chance of UP</span><span class="metric-value" id="probability">—</span></div>
+      <div class="metric"><span class="metric-label">Kalshi YES ask</span><span class="metric-value" id="yesAsk">—</span></div>
+      <div class="metric"><span class="metric-label">Kalshi NO ask</span><span class="metric-value" id="noAsk">—</span></div>
+    </article>
+
+    <article class="card chart-card">
+      <div class="card-head">
+        <div><h3>Kalshi YES price</h3><p id="marketTicker">Waiting for market data</p></div>
+        <div class="tabs" aria-label="Chart time range">
+          <button type="button" data-minutes="5" class="active">5m</button>
+          <button type="button" data-minutes="15">15m</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <svg id="chart" viewBox="0 0 900 300" preserveAspectRatio="none" role="img" aria-label="Interactive Kalshi YES price chart"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <div class="chart-foot"><span>Kalshi market odds · updates about every 5 seconds</span><span id="updated">Waiting for update</span></div>
+    </article>
+
+    <article class="card market-card">
+      <div class="market-stat"><span>BTC spot</span><strong id="btcLarge">—</strong><small>Coinbase BTC-USD</small></div>
+      <div class="market-stat"><span>Kalshi YES mid</span><strong id="yesMid">—</strong><small id="tickerSmall">Current market</small></div>
+    </article>
+  </section>
+
+  <footer>
+    This page shows a simple model estimate and market prices, not financial advice. Short-term prices can be volatile, and the model may be inaccurate. Signals are not guarantees.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const COINBASE = "https://api.exchange.coinbase.com/products/BTC-USD";
+const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
+const SERIES = "KXBTC15M";
+const POLL_MS = 5000;
+const MIN_EDGE = 0.05;
+const STRONG_EDGE = 0.10;
+const LAST_CALL_MIN = 1.5;
+
+let market = null;
+let btcPrice = null;
+let btcCloses = [];
+let chartPoints = [];
+let chartMinutes = 5;
+let lastUpdate = null;
+let busy = false;
+
+const money = n => "$" + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const cents = n => Math.round(Number(n) * 100) + "¢";
+
+function setStatus(state,text) {
+  $("statusDot").className = "dot " + state;
+  $("statusText").textContent = text;
+}
+function setError(text) {
+  $("error").textContent = text || "";
+  $("error").style.display = text ? "block" : "none";
+}
+function num(obj,...keys) {
+  for (const key of keys) {
+    if (obj && obj[key] != null && obj[key] !== "") {
+      const value = Number(obj[key]);
+      if (Number.isFinite(value)) return value;
+    }
+  }
+  return null;
+}
+async function getJSON(url) {
+  const response = await fetch(url,{cache:"no-store"});
+  if (!response.ok) throw new Error("Request failed (" + response.status + ")");
+  return response.json();
+}
+function quote(market,side,kind) {
+  const dollars = num(market,side + "_" + kind + "_dollars");
+  if (dollars != null) return dollars;
+  const centsValue = num(market,side + "_" + kind);
+  return centsValue == null ? null : centsValue / 100;
+}
+function yesMid(market) {
+  const bid = quote(market,"yes","bid");
+  let ask = quote(market,"yes","ask");
+  const noBid = quote(market,"no","bid");
+  if (ask == null && noBid != null) ask = 1 - noBid;
+  if (bid != null && ask != null) return (bid + ask) / 2;
+  if (bid != null) return bid;
+  if (ask != null) return ask;
+  const lastDollars = num(market,"last_price_dollars");
+  if (lastDollars != null) return lastDollars;
+  const lastCents = num(market,"last_price");
+  return lastCents == null ? null : lastCents / 100;
+}
+function cdf(x) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989423 * Math.exp(-x*x/2);
+  const p = d*t*(0.3193815 + t*(-0.3565638 + t*(1.781478 + t*(-1.821256 + t*1.330274))));
+  return x > 0 ? 1-p : p;
+}
+function estimateUp(strike,minutesLeft) {
+  const count = Math.min(30,btcCloses.length-1);
+  const returns = [];
+  for (let i=btcCloses.length-count;i<btcCloses.length;i++) {
+    if (btcCloses[i] > 0 && btcCloses[i-1] > 0) returns.push(Math.log(btcCloses[i]/btcCloses[i-1]));
+  }
+  if (!returns.length) return 0.5;
+  const mean = returns.reduce((a,b)=>a+b,0)/returns.length;
+  const variance = returns.reduce((a,b)=>a+(b-mean)**2,0)/returns.length;
+  const sd = Math.max(Math.sqrt(variance),0.00005);
+  const recent = returns.slice(-5).reduce((a,b)=>a+b,0)/Math.max(1,Math.min(5,returns.length));
+  const drift = 0.1*recent;
+  const time = Math.max(minutesLeft,0.05);
+  return cdf((Math.log(btcPrice/strike)+drift*time)/(sd*Math.sqrt(time)));
+}
+async function loadBTC() {
+  const [ticker,candles] = await Promise.all([
+    getJSON(COINBASE + "/ticker"),
+    getJSON(COINBASE + "/candles?granularity=60")
+  ]);
+  const nextPrice = Number(ticker.price);
+  if (!Number.isFinite(nextPrice)) throw new Error("Coinbase returned an invalid BTC price.");
+  btcPrice = nextPrice;
+  btcCloses = candles.slice().reverse().map(row=>Number(row[4])).filter(Number.isFinite);
+}
+async function loadMarket() {
+  const url = KALSHI_BASE + "/markets?series_ticker=" + encodeURIComponent(SERIES) + "&status=open&limit=10";
+  const data = await getJSON(url);
+  const now = Date.now();
+  const markets = (data.markets || [])
+    .filter(m=>m.close_time && new Date(m.close_time).getTime()>now)
+    .sort((a,b)=>new Date(a.close_time)-new Date(b.close_time));
+  const next = markets[0] || null;
+  if (!next) throw new Error("No open BTC 15-minute Kalshi market was found.");
+  if (!market || market.ticker !== next.ticker) chartPoints = [];
+  market = next;
+  $("marketTicker").textContent = next.ticker;
+  $("tickerSmall").textContent = next.ticker;
+}
+async function loadCandles() {
+  if (!market) return;
+  const now = Date.now();
+  const start = Math.floor((now - 15*60*1000)/1000);
+  const end = Math.floor(now/1000);
+  const url = KALSHI_BASE + "/series/" + encodeURIComponent(SERIES) +
+    "/markets/" + encodeURIComponent(market.ticker) +
+    "/candlesticks?start_ts=" + start + "&end_ts=" + end + "&period_interval=1";
+  try {
+    const data = await getJSON(url);
+    const history = (data.candlesticks || []).map(c=>{
+      const bid = candlePrice(c.yes_bid);
+      const ask = candlePrice(c.yes_ask);
+      const value = bid != null && ask != null ? (bid+ask)/2 : (bid ?? ask ?? candlePrice(c.price));
+      return {t:Number(c.end_period_ts ?? c.ts)*1000,v:value};
+    }).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.v)&&p.v>=0&&p.v<=1);
+    if (history.length) {
+      const live = chartPoints.filter(p=>p.t > history[history.length-1].t);
+      chartPoints = history.concat(live);
+    }
+  } catch (_) {
+    // Keep live quote points if historical candles aren't available.
+  }
+}
+function candlePrice(block) {
+  if (!block) return null;
+  const value = num(block,"close_dollars","close");
+  if (value == null) return null;
+  // Older candle formats can report contract prices in cents.
+  return value > 1 ? value/100 : value;
+}
+function addPoint(t,v) {
+  if (!Number.isFinite(t)||!Number.isFinite(v)||v<0||v>1) return;
+  const last = chartPoints[chartPoints.length-1];
+  if (last && t-last.t < 500) chartPoints[chartPoints.length-1] = {t,v};
+  else chartPoints.push({t,v});
+  const cutoff = Date.now()-15*60*1000;
+  chartPoints = chartPoints.filter(p=>p.t>=cutoff).sort((a,b)=>a.t-b.t);
+}
+function render() {
+  $("btc").textContent = btcPrice ? money(btcPrice) : "—";
+  $("btcLarge").textContent = btcPrice ? money(btcPrice) : "—";
+
+  if (market && market.close_time) {
+    const seconds = Math.max(0,Math.floor((new Date(market.close_time).getTime()-Date.now())/1000));
+    $("clock").textContent = String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");
+    $("subtitle").textContent = market.ticker + " · model estimate from recent BTC prices";
+  } else {
+    $("clock").textContent = "--:--";
+  }
+
+  if (!market || !btcPrice) {
+    drawChart();
+    return;
+  }
+
+  const strike = num(market,"floor_strike","cap_strike");
+  const yesAsk = quote(market,"yes","ask");
+  const noAskDirect = quote(market,"no","ask");
+  const yesBid = quote(market,"yes","bid");
+  const noAsk = noAskDirect != null ? noAskDirect : (yesBid != null ? 1-yesBid : null);
+  const mid = yesMid(market);
+
+  $("yesAsk").textContent = yesAsk == null ? "—" : cents(yesAsk);
+  $("noAsk").textContent = noAsk == null ? "—" : cents(noAsk);
+  $("yesMid").textContent = mid == null ? "—" : cents(mid);
+
+  if (strike == null || strike === 0 || btcCloses.length < 10) {
+    setSignal("WAIT","Waiting for enough price data to calculate the estimate.");
+    drawChart();
+    return;
+  }
+
+  $("strike").textContent = money(strike);
+  const difference = btcPrice-strike;
+  $("distance").textContent = (difference>=0?"+":"−")+money(Math.abs(difference));
+  $("distance").className = "metric-value " + (difference>=0?"up":"down");
+
+  const closeMs = new Date(market.close_time).getTime();
+  const minutesLeft = (closeMs-Date.now())/60000;
+  const pUp = estimateUp(strike,minutesLeft);
+  $("probability").textContent = Math.round(pUp*100)+"%";
+
+  const fee = p => 0.07*p*(1-p);
+  const upEdge = yesAsk == null ? null : pUp-yesAsk-fee(yesAsk);
+  const downEdge = noAsk == null ? null : (1-pUp)-noAsk-fee(noAsk);
+  let side = null, edgeValue = null;
+
+  if (upEdge != null && downEdge != null) {
+    if (upEdge >= downEdge) { side="UP"; edgeValue=upEdge; }
+    else { side="DOWN"; edgeValue=downEdge; }
+  } else if (upEdge != null) { side="UP"; edgeValue=upEdge; }
+  else if (downEdge != null) { side="DOWN"; edgeValue=downEdge; }
+
+  $("edge").textContent = edgeValue == null ? "—" : (edgeValue>=0?"+":"")+(edgeValue*100).toFixed(1)+" pts";
+
+  if (minutesLeft < LAST_CALL_MIN) {
+    setSignal("WAIT","Under 90 seconds remain. Consider waiting for the next market.");
+  } else if (side && edgeValue >= MIN_EDGE) {
+    const chance = side==="UP" ? pUp : 1-pUp;
+    const sidePrice = side==="UP" ? yesAsk : noAsk;
+    setSignal(side,(edgeValue>=STRONG_EDGE?"Larger":"Possible")+" model-price gap. Model estimate: "+
+      Math.round(chance*100)+"%; market ask: "+cents(sidePrice)+".");
+  } else if (side == null) {
+    setSignal("WAIT","Market ask prices are unavailable, so an estimated edge cannot be checked.");
+  } else {
+    setSignal("WAIT","No model-price gap above the selected threshold right now.");
+  }
+
+  drawChart();
+}
+function setSignal(label,description) {
+  const word = $("signal");
+  const icon = $("signalIcon");
+  word.textContent = label;
+  word.className = "signal " + (label==="UP"?"up":label==="DOWN"?"down":"wait");
+  icon.textContent = label==="UP" ? "↗" : label==="DOWN" ? "↘" : "•";
+  icon.className = "signal-icon " + (label==="UP"?"up":label==="DOWN"?"down":"");
+  $("explanation").textContent = description;
+}
+function drawChart() {
+  const svg = $("chart");
+  const now = Date.now();
+  const cutoff = now-chartMinutes*60*1000;
+  const points = chartPoints.filter(p=>p.t>=cutoff&&p.t<=now+1000);
+  if (!points.length) {
+    svg.innerHTML = '<text x="450" y="145" text-anchor="middle" fill="#8b97aa" font-size="14">Waiting for Kalshi price updates…</text>';
+    return;
+  }
+
+  const W=900,H=300,left=58,right=890,top=18,bottom=254;
+  let low=Math.min(...points.map(p=>p.v));
+  let high=Math.max(...points.map(p=>p.v));
+  if (high-low<0.025) {
+    const middle=(high+low)/2;
+    low=Math.max(0,middle-0.0125);
+    high=Math.min(1,middle+0.0125);
+  }
+  if (high===low) { low=0; high=1; }
+  const first=Math.max(cutoff,points[0].t);
+  const last=Math.max(first+1000,now);
+  const X=t=>left+(t-first)/(last-first)*(right-left);
+  const Y=v=>bottom-(v-low)/(high-low)*(bottom-top);
+  const color=points[points.length-1].v>=0.5?"#49dfa5":"#ff7482";
+  const line=points.map(p=>X(p.t).toFixed(1)+","+Y(p.v).toFixed(1)).join(" ");
+  const area=left+","+bottom+" "+line+" "+X(points[points.length-1].t).toFixed(1)+","+bottom;
+  const grid=[0,0.5,1].map(f=>{
+    const y=top+f*(bottom-top);
+    const value=high-f*(high-low);
+    return '<line x1="'+left+'" x2="'+right+'" y1="'+y+'" y2="'+y+'" stroke="rgba(160,174,198,.12)"/>'+
+      '<text x="'+(left-10)+'" y="'+(y+4)+'" text-anchor="end" fill="#8b97aa" font-size="11">'+Math.round(value*100)+'¢</text>';
+  }).join("");
+  const firstLabel=new Date(first).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const lastLabel=new Date(now).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const lastPoint=points[points.length-1];
+  svg.innerHTML =
+    '<defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="'+color+'" stop-opacity=".22"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+
+    grid+
+    '<polygon points="'+area+'" fill="url(#fill)"/>'+
+    '<polyline points="'+line+'" fill="none" stroke="'+color+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'+
+    '<circle cx="'+X(lastPoint.t)+'" cy="'+Y(lastPoint.v)+'" r="5" fill="'+color+'" stroke="#111722" stroke-width="2"/>'+
+    '<text x="'+left+'" y="'+(H-8)+'" fill="#8b97aa" font-size="11">'+firstLabel+'</text>'+
+    '<text x="'+right+'" y="'+(H-8)+'" text-anchor="end" fill="#8b97aa" font-size="11">'+lastLabel+'</text>';
+
+  svg.dataset.left=String(left);
+  svg.dataset.right=String(right);
+  svg.dataset.top=String(top);
+  svg.dataset.bottom=String(bottom);
+  svg.dataset.first=String(first);
+  svg.dataset.last=String(last);
+  svg.dataset.low=String(low);
+  svg.dataset.high=String(high);
+}
+function onChartPointer(event) {
+  const svg=$("chart");
+  if (!chartPoints.length || !svg.dataset.first) return;
+  const rect=svg.getBoundingClientRect();
+  const svgX=(event.clientX-rect.left)/rect.width*900;
+  const left=Number(svg.dataset.left),right=Number(svg.dataset.right);
+  const first=Number(svg.dataset.first),last=Number(svg.dataset.last);
+  const t=first+(svgX-left)/(right-left)*(last-first);
+  const visible=chartPoints.filter(p=>p.t>=Date.now()-chartMinutes*60*1000);
+  if (!visible.length) return;
+  const nearest=visible.reduce((best,p)=>Math.abs(p.t-t)<Math.abs(best.t-t)?p:best,visible[0]);
+  const tooltip=$("tooltip");
+  const wrap=$("chartWrap");
+  tooltip.innerHTML="<strong>"+cents(nearest.v)+"</strong><span>"+new Date(nearest.t).toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})+"</span>";
+  tooltip.style.display="block";
+  const x=Math.min(Math.max(event.clientX-wrap.getBoundingClientRect().left+10,4),wrap.clientWidth-124);
+  tooltip.style.left=x+"px";
+  tooltip.style.top="10px";
+}
+$("chart").addEventListener("pointermove",onChartPointer);
+$("chart").addEventListener("pointerleave",()=>$("tooltip").style.display="none");
+document.querySelectorAll("[data-minutes]").forEach(button=>{
+  button.addEventListener("click",()=>{
+    document.querySelectorAll("[data-minutes]").forEach(b=>b.classList.remove("active"));
+    button.classList.add("active");
+    chartMinutes=Number(button.dataset.minutes);
+    drawChart();
+  });
+});
+
+async function refresh() {
+  if (busy) return;
+  busy=true;
+  try {
+    await Promise.all([loadBTC(),loadMarket()]);
+    const mid=yesMid(market);
+    if (mid != null) addPoint(Date.now(),mid);
+    await loadCandles();
+    const refreshedMid=yesMid(market);
+    if (refreshedMid != null) addPoint(Date.now(),refreshedMid);
+    lastUpdate=new Date();
+    $("updated").textContent="Updated "+lastUpdate.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"});
+    setError("");
+    setStatus("ok","Market data connected");
+  } catch (error) {
+    setStatus("bad","Data update failed");
+    setError(error && error.message ? error.message : "Could not load market data. Check your connection and try again.");
+  } finally {
+    render();
+    busy=false;
+  }
+}
+
+setInterval(()=>{
+  if (market && market.close_time) {
+    const seconds=Math.max(0,Math.floor((new Date(market.close_time).getTime()-Date.now())/1000));
+    $("clock").textContent=String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");
+  }
+},1000);
+
+refresh();
+setInterval(refresh,POLL_MS);
+</script>
+</body>
+</html>
