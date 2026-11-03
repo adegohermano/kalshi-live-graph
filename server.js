@@ -1,188 +1,102 @@
+"use strict";
+
 const express = require("express");
-const { createServer } = require("http");
-const WebSocket = require("ws");
-const crypto = require("crypto");
 
 const app = express();
-const server = createServer(app);
-const browserSockets = new WebSocket.Server({ server, path: "/stream" });
-
 const PORT = process.env.PORT || 10000;
 const SERIES = process.env.KALSHI_SERIES_TICKER || "KXBTC15M";
-const API_KEY_ID = process.env.KALSHI_API_KEY_ID;
-const PRIVATE_KEY = (process.env.KALSHI_PRIVATE_KEY || "").replace(/\\n/g, "\n");
 
-const KALSHI_REST = "https://external-api.kalshi.com/trade-api/v2";
-const KALSHI_WS = "wss://external-api-ws.kalshi.com/trade-api/ws/v2";
-const WS_PATH = "/trade-api/ws/v2";
+const KALSHI_API = "https://external-api.kalshi.com/trade-api/v2";
+const COINBASE_API = "https://api.exchange.coinbase.com/products/BTC-USD";
+const FRONTEND_ORIGIN =
+  process.env.FRONTEND_ORIGIN || "https://kalshi-live-graph-2.onrender.com";
 
-let activeTicker = null;
-let kalshiSocket = null;
-let reconnectTimer = null;
+app.disable("x-powered-by");
 
-app.get("/", (_req, res) => {
-  res.send("Kalshi live-price relay is running.");
-});
+app.use((req, res, next) => {
+  const origin = req.get("Origin");
 
-browserSockets.on("connection", client => {
-  client.send(JSON.stringify({ type: "status", status: "connected" }));
-});
-
-function sendToBrowsers(data) {
-  const message = JSON.stringify(data);
-
-  for (const client of browserSockets.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  }
-}
-
-function makeAuthHeaders() {
-  const timestamp = Date.now().toString();
-  const message = timestamp + "GET" + WS_PATH;
-  const privateKey = crypto.createPrivateKey(PRIVATE_KEY);
-
-  let signature;
-
-  if (privateKey.asymmetricKeyType === "ed25519") {
-    signature = crypto.sign(null, Buffer.from(message, "utf8"), privateKey);
-  } else {
-    signature = crypto.sign("sha256", Buffer.from(message, "utf8"), {
-      key: privateKey,
-      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
-    });
+  if (origin === FRONTEND_ORIGIN) {
+    res.set("Access-Control-Allow-Origin", FRONTEND_ORIGIN);
+    res.set("Vary", "Origin");
   }
 
-  return {
-    "KALSHI-ACCESS-KEY": API_KEY_ID,
-    "KALSHI-ACCESS-TIMESTAMP": timestamp,
-    "KALSHI-ACCESS-SIGNATURE": signature.toString("base64")
-  };
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "GET,OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+async function getJSON(url) {
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12000)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upstream request failed (HTTP ${response.status})`);
+  }
+
+  return response.json();
 }
 
 async function findCurrentMarket() {
-  const url = new URL(KALSHI_REST + "/markets");
+  const url = new URL(`${KALSHI_API}/markets`);
   url.searchParams.set("series_ticker", SERIES);
   url.searchParams.set("status", "open");
   url.searchParams.set("limit", "200");
 
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error("Market lookup failed: HTTP " + response.status);
-  }
-
-  const data = await response.json();
+  const data = await getJSON(url);
   const now = Date.now();
 
-  return (data.markets || [])
-    .filter(m => m.close_time && new Date(m.close_time).getTime() > now)
-    .sort((a, b) => new Date(a.close_time) - new Date(b.close_time))[0] || null;
+  const markets = (data.markets || [])
+    .filter(market => {
+      const closeTime = Date.parse(market.close_time || "");
+      return Number.isFinite(closeTime) && closeTime > now;
+    })
+    .sort((a, b) => Date.parse(a.close_time) - Date.parse(b.close_time));
+
+  return markets[0] || null;
 }
 
-function connectToKalshi(ticker) {
-  if (!ticker || (ticker === activeTicker && kalshiSocket)) return;
+app.get("/", (_req, res) => {
+  res.type("text").send("Kalshi live-price relay is running.");
+});
 
-  activeTicker = ticker;
-
-  if (kalshiSocket) {
-    const oldSocket = kalshiSocket;
-    kalshiSocket = null;
-    oldSocket.close();
-  }
-
-  const socket = new WebSocket(KALSHI_WS, {
-    headers: makeAuthHeaders()
-  });
-
-  kalshiSocket = socket;
-
-  socket.on("open", () => {
-    if (kalshiSocket !== socket) return;
-
-    socket.send(JSON.stringify({
-      id: 1,
-      cmd: "subscribe",
-      params: {
-        channels: ["ticker"],
-        market_tickers: [ticker]
-      }
-    }));
-
-    sendToBrowsers({ type: "market", market_ticker: ticker });
-    console.log("Subscribed to Kalshi market:", ticker);
-  });
-
-  socket.on("message", raw => {
-    if (kalshiSocket !== socket) return;
-
-    try {
-      const data = JSON.parse(raw.toString());
-      if (data.type !== "ticker" || !data.msg) return;
-
-      const m = data.msg;
-      const bid = Number(m.yes_bid_dollars);
-      const ask = Number(m.yes_ask_dollars);
-      const last = Number(m.price_dollars);
-
-      let yesMid = null;
-
-      if (Number.isFinite(bid) && Number.isFinite(ask)) {
-        yesMid = (bid + ask) / 2;
-      } else if (Number.isFinite(last)) {
-        yesMid = last;
-      }
-
-      if (yesMid === null) return;
-
-      sendToBrowsers({
-        type: "ticker",
-        market_ticker: m.market_ticker,
-        ts_ms: Number(m.ts_ms) || Date.now(),
-        yes_mid: yesMid
-      });
-    } catch (err) {
-      console.error("Could not process Kalshi message:", err.message);
-    }
-  });
-
-  socket.on("error", err => {
-    console.error("Kalshi WebSocket error:", err.message);
-  });
-
-  socket.on("close", () => {
-    if (kalshiSocket !== socket) return;
-
-    kalshiSocket = null;
-    clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(() => {
-      if (activeTicker) connectToKalshi(activeTicker);
-    }, 3000);
-  });
-}
-
-async function checkMarket() {
+app.get("/api/snapshot", async (_req, res) => {
   try {
-    const market = await findCurrentMarket();
+    const [market, ticker] = await Promise.all([
+      findCurrentMarket(),
+      getJSON(`${COINBASE_API}/ticker`)
+    ]);
 
-    if (market && market.ticker !== activeTicker) {
-      connectToKalshi(market.ticker);
+    if (!market) {
+      return res.status(404).json({
+        error: `No open market found for series ${SERIES}.`
+      });
     }
-  } catch (err) {
-    console.error("Market lookup error:", err.message);
+
+    const btcPrice = Number(ticker.price);
+
+    if (!Number.isFinite(btcPrice)) {
+      throw new Error("Coinbase returned an invalid BTC price.");
+    }
+
+    res.set("Cache-Control", "no-store");
+    res.json({
+      timestamp: Date.now(),
+      market,
+      btcPrice
+    });
+  } catch (error) {
+    console.error("Snapshot error:", error.message);
+    res.status(502).json({ error: error.message || "Could not load market data." });
   }
-}
+});
 
-if (!API_KEY_ID || !PRIVATE_KEY) {
-  console.error("Missing Kalshi API key environment variables.");
-  process.exit(1);
-}
-
-checkMarket();
-setInterval(checkMarket, 10000);
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("Relay listening on port " + PORT);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Relay listening on port ${PORT}`);
 });
