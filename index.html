@@ -361,6 +361,15 @@
         transition-duration: .01ms !important;
       }
     }
+
+    .opinion-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}
+    .opinion-tile{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel2);min-width:0}
+    .opinion-tile strong{font-size:12px}.opinion-tile p{font-size:11px;color:var(--muted);overflow-wrap:anywhere;min-height:44px;margin:7px 0}
+    .opinion-tile small,.opinion-foot{font-size:11px;color:var(--muted)}
+    .opinion-direction{font-size:26px;font-weight:800;margin-top:9px;color:var(--amber)}
+    .opinion-direction.up{color:var(--green)}.opinion-direction.down{color:var(--red)}
+    @media(max-width:760px){.opinion-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:430px){.opinion-grid{grid-template-columns:1fr}}
   </style>
 </head>
 
@@ -391,6 +400,18 @@
     <div class="banner" id="banner" role="status"></div>
 
     <section class="grid">
+
+      <article class="card opinion-card" style="grid-column:1/-1;padding:20px">
+        <div class="card-head"><div><h3>Four prediction opinions</h3><p>Separate perspectives · Experimental signals, not win probabilities</p></div><span class="tag">ALERTS ONLY</span></div>
+        <div class="opinion-grid">
+          <div class="opinion-tile"><strong>Existing Lean</strong><div id="opLean" class="opinion-direction">WAIT</div><p id="opLeanReason">Waiting for data</p></div>
+          <div class="opinion-tile"><strong>OpenAI Analysis</strong><div id="opAi" class="opinion-direction">WAIT</div><p id="opAiReason">Waiting for API</p><small id="opAiTime"></small></div>
+          <div class="opinion-tile"><strong>Momentum Model</strong><div id="opMomentum" class="opinion-direction">WAIT</div><p id="opMomentumReason">Waiting for data</p></div>
+          <div class="opinion-tile"><strong>Order Book Model</strong><div id="opBook" class="opinion-direction">WAIT</div><p id="opBookReason">Waiting for data</p></div>
+        </div>
+        <p id="opAgreement" class="opinion-foot">No opinions yet.</p>
+        <p class="opinion-foot">OpenAI is a separate paid API service; its analysis is not this chat session and may be wrong. Opinions share inputs, so agreement is not independent evidence or a probability.</p>
+      </article>
       <article class="card chart-card btc">
         <div class="card-head">
           <div>
@@ -1189,6 +1210,23 @@
     }catch(e){$("alertsStatus").textContent="Tracking API unavailable: "+e.message;}}
     refreshTracking();setInterval(refreshTracking,15000);
 
+
+    function renderOpinions(snapshot){
+      const opinions=snapshot.opinions||{};
+      const items=[["Lean",opinions.lean],["Ai",opinions.ai],["Momentum",opinions.momentum],["Book",opinions.orderbook]];
+      let up=0,down=0,wait=0;
+      for(const [id,item] of items){
+        const direction=["UP","DOWN"].includes(item?.direction)?item.direction:"WAIT";
+        if(direction==="UP")up++;else if(direction==="DOWN")down++;else wait++;
+        const node=document.getElementById("op"+id);if(!node)continue;
+        node.textContent=direction;node.className="opinion-direction "+direction.toLowerCase();
+        document.getElementById("op"+id+"Reason").textContent=item?.reason||"No data available";
+      }
+      document.getElementById("opAiTime").textContent=opinions.ai?.status==="ready"&&opinions.ai?.generatedAt?"Updated "+new Date(opinions.ai.generatedAt).toLocaleTimeString():"AI status: "+(opinions.ai?.status||"unavailable");
+      document.getElementById("opAgreement").textContent=`Opinion breakdown: ${up} UP · ${down} DOWN · ${wait} WAIT. No verified win probability.`;
+    }
+    const previousOpinionRender=render;
+    render=function(snapshot){previousOpinionRender(snapshot);renderOpinions(snapshot);};
     poll();
   </script>
 </body>
