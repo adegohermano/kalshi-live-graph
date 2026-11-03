@@ -419,6 +419,10 @@
     @media(prefers-reduced-motion:reduce){body::before,body::after{animation:none!important;transform:none!important}}
   
     .coin-nav{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.coin-tab{cursor:pointer;border:1px solid rgba(176,126,255,.28);background:rgba(36,19,67,.8);color:#d9c8f8;border-radius:12px;padding:12px 18px;font:inherit;font-weight:750;transition:.2s}.coin-tab:hover,.coin-tab.selected{background:linear-gradient(135deg,#6d37bd,#3c2375);color:#fff;border-color:#bd94ff;box-shadow:0 0 22px rgba(143,78,246,.2)}.scanner{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 20px}.scan-tile{border:1px solid rgba(167,118,255,.22);border-radius:14px;padding:12px;background:rgba(27,16,52,.82);color:#e8dfff;cursor:pointer;text-align:left;font:inherit}.scan-tile strong{display:block;font-size:14px}.scan-tile span{display:block;color:#bba9d9;font-size:11px;margin-top:5px}.scan-tile em{display:block;font-style:normal;font-weight:800;margin-top:5px}.scan-tile .up{color:#4ce6ac}.scan-tile .down{color:#ff8aa5}@media(max-width:600px){.scanner{grid-template-columns:1fr}.coin-tab{flex:1;padding:11px 8px}}
+
+/* Galaxy Pro additions */
+.pro-panel{margin:16px 0;padding:20px}.pro-panel h3{margin:0 0 5px;font-size:16px}.pro-muted{font-size:12px;color:var(--muted);margin:4px 0 12px}.pro-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pro-box{padding:15px;border-radius:13px;border:1px solid rgba(185,141,255,.2);background:rgba(31,17,57,.62);min-width:0}.pro-box strong{display:block;font-size:18px}.pro-box small{color:#bcaad9}.pro-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.pro-actions label{display:grid;gap:4px;font-size:12px;color:#d5c7ec}.pro-actions input,.pro-actions select{width:145px;max-width:100%;background:#201337;color:#fff;border:1px solid #6e4c9b;border-radius:9px;padding:9px}.pro-btn{background:linear-gradient(120deg,#8a4bdc,#5c2ca6);border:1px solid #b98df6;border-radius:10px;padding:10px 14px;color:#fff;cursor:pointer;font-weight:700}.pro-btn:disabled{opacity:.4;cursor:not-allowed}.pro-table{width:100%;border-collapse:collapse;font-size:12px}.pro-table th,.pro-table td{text-align:left;padding:9px;border-bottom:1px solid rgba(177,138,228,.2)}.pro-scroll{overflow-x:auto}.pro-status{min-height:20px;font-size:12px;color:#d5b8ff;margin-top:10px}.pro-panel[hidden]{display:none!important}@media(max-width:750px){.pro-grid{grid-template-columns:1fr}.pro-panel{padding:15px}}
+body.low-motion::before,body.low-motion::after{animation:none!important;transition:none!important}
 </style>
 </head>
 
@@ -443,7 +447,16 @@
       <button class="nav-tab" id="tabSupport" role="tab" aria-selected="false" aria-controls="pageSupport" type="button">Support</button>
     </nav>
     <div id="pageDashboard" class="tab-page" role="tabpanel" aria-labelledby="tabDashboard">
-<div class="coin-nav" role="group" aria-label="Choose crypto market"><button class="coin-tab selected" data-coin="BTC" type="button">₿ Bitcoin</button><button class="coin-tab" data-coin="ETH" type="button">Ξ Ethereum</button><button class="coin-tab" data-coin="SOL" type="button">◎ Solana</button></div><div id="scanner" class="scanner" aria-live="polite">Market scanner loading…</div>
+<div class="coin-nav" role="group" aria-label="Choose crypto market"><button class="coin-tab selected" data-coin="BTC" type="button">₿ Bitcoin</button><button class="coin-tab" data-coin="ETH" type="button">Ξ Ethereum</button><button class="coin-tab" data-coin="SOL" type="button">◎ Solana</button></div><div id="scanner" class="scanner" aria-live="polite">Market scanner loading…</div><section class="card pro-panel" id="proPanel">
+<div class="card-head"><div><h3>GALAXY PRO · Opportunity desk</h3><p class="pro-muted">Scanner ranks data quality and signal agreement, not guaranteed profit or win probability.</p></div><span class="tag">PAPER ONLY</span></div>
+<div class="pro-grid" id="proOverview"><div class="pro-box">Waiting for market scanner…</div></div>
+<div class="pro-grid" style="margin-top:12px"><div class="pro-box"><small>Volatility regime</small><strong id="proVol">—</strong><small id="proVolDetail">Waiting for history</small></div><div class="pro-box"><small>Entry quality</small><strong id="proEntry">—</strong><small id="proEntryDetail">Waiting for live asks</small></div><div class="pro-box"><small>Backend health</small><strong id="proHealth">Checking…</strong><small id="proHealthDetail">API diagnostics</small></div></div>
+</section>
+<section class="card pro-panel"><h3>Paper trading · $25 starting balance</h3><p class="pro-muted">Manual hypothetical positions using observed live asks. Local browser storage; never places orders. Fees are estimates and settlement requires a live Kalshi result.</p>
+<div class="pro-actions"><label>Side<select id="paperSide"><option value="yes">YES / UP</option><option value="no">NO / DOWN</option></select></label><label>Contracts<input id="paperQty" type="number" min="1" max="1000" step="1" value="1"></label><label>Fee per contract ($)<input id="paperFee" type="number" min="0" max="1" step="0.01" value="0.02"></label><button class="pro-btn" id="paperEnter" type="button">Simulate entry</button><button class="pro-btn" id="paperSettle" type="button">Check settlements</button></div>
+<div id="paperSummary" class="advanced-metrics"></div><div id="paperMessage" class="pro-status" role="status"></div><div class="pro-scroll"><table class="pro-table"><thead><tr><th>Market</th><th>Side</th><th>Entry</th><th>Cost</th><th>Status</th><th>P/L</th></tr></thead><tbody id="paperRows"></tbody></table></div>
+</section>
+<section class="card pro-panel"><h3>Performance & preferences</h3><div id="proPerformance" class="advanced-metrics"></div><p class="pro-muted">Only recorded BTC qualified signals are included in server-side performance. ETH/SOL performance requires independent recorded settlements. Small samples are not proof of predictive skill.</p><div class="pro-actions"><label>Minimum scanner strength<select id="proThreshold"><option value="0">All signals</option><option value="60">60+</option><option value="75">75+</option><option value="85">85+</option></select></label><label>Motion<select id="proMotion"><option value="on">Animated galaxy</option><option value="off">Reduced motion</option></select></label><label>Refresh interval<select id="proRefresh"><option value="2000">2 seconds</option><option value="5000">5 seconds</option><option value="10000">10 seconds</option></select></label></div><div id="proSettingsStatus" class="pro-status" role="status"></div></section>
     <section class="heading">
       <div>
         <h2>BTC market outlook</h2>
@@ -596,7 +609,7 @@
         <h3>BTC prediction tracking and Discord alerts</h3>
         <div id="predictionStats" class="advanced-metrics">Waiting for history…</div>
         <div id="predictionRows" class="prediction-list">No predictions recorded yet.</div>
-        <p id="alertsStatus">Checking Discord alert configuration…</p>
+        <p id="alertsStatus">Local prediction tracking active</p>
         <p>Predictions are recorded once per direction per market and scored only from Kalshi’s settled result. This is observational tracking, not a backtest or proof of profitability.</p>
       </article>
       <article class="card info-card">
@@ -624,7 +637,7 @@
     let API_URL = `${API_BASE.replace(/\/+$/, "")}/api/snapshot/BTC`;
     let activeCoin = "BTC";
 
-    const POLL_MS = 2_000;
+    let POLL_MS = 2_000;
     const CHART_WINDOW_MS = 15 * 60 * 1_000;
     const MAX_POINTS = 900;
     const MIN_TREND_AGE_MS = 45_000;
@@ -1275,7 +1288,7 @@
       fillMetrics("predictionStats",["Signals: "+p.stats.total,"Settled: "+p.stats.settled,"Correct: "+p.stats.wins,"Observed win rate: "+(p.stats.winRate==null?"—":(p.stats.winRate*100).toFixed(1)+"%")]);
       const root=$("predictionRows");root.replaceChildren();if(!p.rows.length)root.textContent="No signals recorded yet.";
       for(const r of p.rows.slice(0,20)){const el=document.createElement("div");el.textContent=`${new Date(r.createdAt).toLocaleString()} · ${r.ticker} · ${r.direction} · ${r.status}${r.correct==null?"":r.correct?" · correct":" · incorrect"}`;root.append(el);}
-      $("alertsStatus").textContent=c.alertsConfigured?"Discord webhook configured. Alerts fire once per qualifying direction per market.":"Discord alerts off: set DISCORD_WEBHOOK_URL on Render.";
+      $("alertsStatus").textContent=c.alertsConfigured?"Prediction history available.":"Discord notifications disabled.";
       if(!p.persistent)$("alertsStatus").textContent+=" History storage is ephemeral until DATA_DIR points to a persistent Render disk.";
     }catch(e){$("alertsStatus").textContent="Tracking API unavailable: "+e.message;}}
     refreshTracking();setInterval(refreshTracking,15000);
@@ -1365,6 +1378,73 @@
       }
     }
     refreshScanner();setInterval(refreshScanner,15000);
+
+    // Pro features: browser-only paper ledger; never writes to Kalshi or backend.
+    const PRO_KEY='galaxy-pro-paper-v1';
+    const safeStore={get(k){try{return localStorage.getItem(k)}catch(_){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(_){}}};
+    let paper=[];try{const data=JSON.parse(safeStore.get(PRO_KEY)||'[]');if(Array.isArray(data))paper=data.filter(x=>x&&typeof x==='object').slice(-200)}catch(_){}
+    let scannerData=[];
+    const preference=(id,key,def)=>{const el=$(id);el.value=safeStore.get(key)||def;el.addEventListener('change',()=>{safeStore.set(key,el.value);applyPrefs();});};
+    preference('proThreshold','galaxy-threshold','0');preference('proMotion','galaxy-motion','on');preference('proRefresh','galaxy-refresh','2000');
+    function applyPrefs(){document.body.classList.toggle('low-motion',$('proMotion').value==='off');POLL_MS=Number($('proRefresh').value)||2000;$('proSettingsStatus').textContent='Preferences saved in this browser.';renderProScanner();}
+    function dollars(n){return Number.isFinite(n)?'$'+n.toFixed(2):'—'}
+    function renderPaper(){
+      const realized=paper.filter(p=>p.status==='settled').reduce((n,p)=>n+(Number(p.pnl)||0),0);
+      const reserved=paper.filter(p=>p.status==='pending').reduce((n,p)=>n+(Number(p.cost)||0),0);
+      const available=25+realized-reserved;
+      fillMetrics('paperSummary',['Starting balance: $25.00','Available: '+dollars(available),'Reserved: '+dollars(reserved),'Realized P/L: '+dollars(realized),'Positions: '+paper.length]);
+      const root=$('paperRows');root.replaceChildren();
+      for(const p of [...paper].reverse().slice(0,30)){
+        const tr=document.createElement('tr');for(const value of [p.symbol+' · '+p.ticker,p.side.toUpperCase()+' ×'+p.qty,quote(p.ask),dollars(p.cost),p.status,p.status==='settled'?dollars(p.pnl):'—']){const td=document.createElement('td');td.textContent=String(value);tr.append(td)}root.append(tr);
+      }
+      if(!paper.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=6;td.textContent='No paper positions yet.';tr.append(td);root.append(tr)}
+      safeStore.set(PRO_KEY,JSON.stringify(paper.slice(-200)));
+    }
+    function currentPaperAsk(){const b=latestSnapshot?.orderbook,side=$('paperSide').value;return latestSnapshot?.bookStale===false?b?.[side+'Ask']:null}
+    $('paperEnter').addEventListener('click',()=>{
+      const d=latestSnapshot,ask=currentPaperAsk(),qty=Number($('paperQty').value),fee=Number($('paperFee').value),ticker=d?.market?.ticker;
+      if(!d?.marketUsable||!ticker||!Number.isFinite(ask)||ask<=0||ask>=1){$('paperMessage').textContent='No fresh executable ask for this market.';return}
+      if(!Number.isSafeInteger(qty)||qty<1||qty>1000||!Number.isFinite(fee)||fee<0||fee>1){$('paperMessage').textContent='Enter a valid quantity and estimated fee.';return}
+      const cost=qty*(ask+fee),realized=paper.filter(p=>p.status==='settled').reduce((n,p)=>n+(Number(p.pnl)||0),0),reserved=paper.filter(p=>p.status==='pending').reduce((n,p)=>n+(Number(p.cost)||0),0);
+      if(cost>25+realized-reserved+0.000001){$('paperMessage').textContent='Not enough available paper balance.';return}
+      paper.push({id:Date.now()+'-'+Math.random().toString(36).slice(2),symbol:activeCoin,ticker,side:$('paperSide').value,ask,qty,fee,cost,status:'pending',createdAt:Date.now(),closeTime:d.market.close_time,pnl:null});
+      $('paperMessage').textContent='Paper position recorded. No real order was placed.';renderPaper();
+    });
+    let settling=false;
+    async function checkPaperSettlements(){if(settling)return;settling=true;let changed=0;
+      try{for(const p of paper.filter(p=>p.status==='pending'&&Date.parse(p.closeTime)<Date.now()-60000).slice(0,12)){
+        try{const r=await fetch(`${API_BASE}/api/settlement/${encodeURIComponent(p.ticker)}`,{cache:'no-store'});if(!r.ok)continue;const d=await r.json();if(d.result==='yes'||d.result==='no'){p.status='settled';p.result=d.result;p.pnl=(d.result===p.side?p.qty:0)-p.cost;changed++}}catch(_){}
+      }$('paperMessage').textContent=changed?changed+' position(s) settled using official Kalshi result.':'No new confirmed settlements.';renderPaper()}finally{settling=false}
+    }
+    $('paperSettle').addEventListener('click',checkPaperSettlements);renderPaper();setInterval(checkPaperSettlements,60000);
+    function renderProScanner(){
+      const threshold=Number($('proThreshold').value)||0,root=$('proOverview');root.replaceChildren();
+      const ranked=[...scannerData].sort((a,b)=>Number(b.quality)-Number(a.quality));
+      for(const d of ranked){const div=document.createElement('div');div.className='pro-box';
+        const title=document.createElement('strong');title.textContent=d.symbol+' · '+(d.direction||'WAIT');
+        const details=document.createElement('small');details.textContent=d.reason;
+        div.append(title,details);root.append(div);
+      }
+      if(!ranked.length)root.textContent='Waiting for scanner data';
+    }
+    async function updatePro(){
+      const results=await Promise.all(['BTC','ETH','SOL'].map(async symbol=>{try{const r=await fetch(`${API_BASE}/api/snapshot/${symbol}`,{cache:'no-store'});if(!r.ok)throw Error('offline');return await r.json()}catch(_){return {symbol}}}));
+      scannerData=results.map(d=>{const lean=d.directionalLean||{},s=d.signal||{},book=d.orderbook||{},direction=d.marketUsable&&['UP','DOWN'].includes(lean.direction)?lean.direction:null;
+        const spread=s.spread,quality=d.marketUsable&&!d.bookStale&&Number.isFinite(spread)&&spread>=0&&spread<=.05?Number(lean.strength)||0:0;
+        const threshold=Number($('proThreshold').value)||0;
+        return {symbol:d.symbol||'?',direction:quality>=threshold?direction:null,quality,reason:!d.marketUsable?'Market feed unavailable / stale':d.bookStale?'Order book stale':spread==null?'No executable spread':spread>.05?'Wide spread '+quote(spread):!direction?'No directional agreement':quality<threshold?'Below strength threshold':`Strength ${quality}/100 · spread ${quote(spread)} · ${Math.round(s.secondsLeft||0)}s left`};
+      });renderProScanner();
+      const d=results.find(x=>x.symbol===activeCoin)||latestSnapshot,s=d?.signal||{};
+      const vol=Number(s.volatilityBps);let regime='UNAVAILABLE';if(Number.isFinite(vol)&&vol>=0)regime=vol<3?'LOW':vol<8?'MODERATE':vol<18?'HIGH':'EXTREME';
+      $('proVol').textContent=regime;$('proVolDetail').textContent=Number.isFinite(vol)?vol.toFixed(2)+' bps · short-window volatility proxy':'Insufficient recent samples';
+      const direction=d?.directionalLean?.direction,ask=direction==='UP'?d?.orderbook?.yesAsk:direction==='DOWN'?d?.orderbook?.noAsk:null;
+      $('proEntry').textContent=!d?.marketUsable||d?.bookStale?'NO LIVE QUOTE':Number.isFinite(ask)?quote(ask):'NO SIDE';
+      $('proEntryDetail').textContent=Number.isFinite(ask)?`Ask ${quote(ask)} · before fees · no validated edge`:'Cannot evaluate entry without a fresh directional quote';
+    }
+    async function updateProHealth(){try{const r=await fetch(`${API_BASE}/healthz`,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();$('proHealth').textContent=d.ok?'ONLINE':'DEGRADED';$('proHealthDetail').textContent='Uptime '+Math.floor((d.uptimeSeconds||0)/60)+'m · '+Object.keys(d.errors||{}).length+' feed error(s)';}catch(_){$('proHealth').textContent='OFFLINE';$('proHealthDetail').textContent='Backend unreachable';}}
+    async function updateProPerformance(){try{const r=await fetch(`${API_BASE}/api/predictions`,{cache:'no-store'});if(!r.ok)return;const d=await r.json(),rows=d.rows||[],settled=rows.filter(x=>x.status==='settled');const up=settled.filter(x=>x.direction==='UP'),down=settled.filter(x=>x.direction==='DOWN');const pct=a=>a.length?(100*a.filter(x=>x.correct).length/a.length).toFixed(1)+'%':'—';fillMetrics('proPerformance',['BTC settled: '+settled.length,'BTC observed accuracy: '+pct(settled),'UP: '+pct(up)+' ('+up.length+')','DOWN: '+pct(down)+' ('+down.length+')','ETH/SOL: not tracked yet']);}catch(_){}}
+    applyPrefs();updatePro();updateProHealth();updateProPerformance();setInterval(updatePro,15000);setInterval(updateProHealth,15000);setInterval(updateProPerformance,30000);
+
 
     poll();
   </script>

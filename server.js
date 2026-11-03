@@ -10,7 +10,7 @@ const COINBASE = process.env.COINBASE_API_BASE || "https://api.exchange.coinbase
 const ORIGINS = new Set((process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || "https://kalshi-live-graph-2.onrender.com").split(",").map(s => s.trim()).filter(Boolean));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "predictions.json");
-const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || "";
+const WEBHOOK = ""; // Discord webhook integration disabled
 const BTC_INTERVAL = 5000, MARKET_INTERVAL = 10000, CANDLES_INTERVAL = 60000;
 const FRESH_BTC = 20000, FRESH_MARKET = 35000;
 const state = {btcPrice:null,btcUpdatedAt:0,market:null,marketUpdatedAt:0,orderbook:null,bookUpdatedAt:0,candles:[],candlesUpdatedAt:0,btcHistory:[],yesHistory:[],errors:{},signals:[],predictions:[],lastAlertKey:"",marketTicker:null};
@@ -212,14 +212,14 @@ function calculateTrendOpinion(now=Date.now()){
 function loadPredictions(){try{const rows=JSON.parse(fs.readFileSync(DATA_FILE,"utf8"));if(Array.isArray(rows))state.predictions=rows.slice(-1000);}catch(e){if(e.code!=="ENOENT")console.warn("Could not load history:",e.message);}}
 function savePredictions(){try{fs.mkdirSync(DATA_DIR,{recursive:true});const tmp=DATA_FILE+".tmp";fs.writeFileSync(tmp,JSON.stringify(state.predictions.slice(-1000)));fs.renameSync(tmp,DATA_FILE);}catch(e){console.warn("History not persisted:",e.message);}}
 async function notifyDiscord(p){if(!WEBHOOK)return;try{const content=`📊 **Kalshi BTC 15m alert (experimental)**\n${p.direction} · ${p.ticker}\nBTC: $${p.btcPrice.toFixed(2)} · Strike: $${p.strike.toFixed(2)}\nYES bid/ask: ${Math.round(p.yesBid*100)}¢ / ${Math.round(p.yesAsk*100)}¢\nHeuristic agreement: ${p.strength}/100 (NOT a win probability)\nNo automatic trades. Verify market rules and fees.`;const r=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(8000)});if(!r.ok)console.warn("Discord webhook HTTP",r.status);}catch(e){console.warn("Discord webhook failed:",e.message);}}
-async function captureSignal(){const s=calculateSignal(timeNow()),m=state.market;if(s.direction==="WAIT"||!m)return;const key=`${m.ticker}:${s.direction}`;if(state.lastAlertKey===key)return;state.lastAlertKey=key;const record={id:`${m.ticker}:${Date.now()}`,ticker:m.ticker,direction:s.direction,createdAt:Date.now(),closeTime:m.close_time,btcPrice:state.btcPrice,strike:strikeOf(m),yesBid:s.yesBid,yesAsk:s.yesAsk,strength:s.strength,indicators:{momentum60:s.momentum60,momentum180:s.momentum180,rsi14:s.rsi14,normalizedDistance:s.normalizedDistance,bookPressure:s.bookPressure},entryAsk:s.direction==="UP"?s.yesAsk:s.noAsk,result:null,correct:null,status:"pending",model:s.model};state.predictions.push(record);state.predictions=state.predictions.slice(-1000);savePredictions();await notifyDiscord(record);}
+async function captureSignal(){const s=calculateSignal(timeNow()),m=state.market;if(s.direction==="WAIT"||!m)return;const key=`${m.ticker}:${s.direction}`;if(state.lastAlertKey===key)return;state.lastAlertKey=key;const record={id:`${m.ticker}:${Date.now()}`,ticker:m.ticker,direction:s.direction,createdAt:Date.now(),closeTime:m.close_time,btcPrice:state.btcPrice,strike:strikeOf(m),yesBid:s.yesBid,yesAsk:s.yesAsk,strength:s.strength,indicators:{momentum60:s.momentum60,momentum180:s.momentum180,rsi14:s.rsi14,normalizedDistance:s.normalizedDistance,bookPressure:s.bookPressure},entryAsk:s.direction==="UP"?s.yesAsk:s.noAsk,result:null,correct:null,status:"pending",model:s.model};state.predictions.push(record);state.predictions=state.predictions.slice(-1000);savePredictions();/* Discord notifications disabled; local prediction tracking retained. */}
 async function settlePending(){const pending=state.predictions.filter(p=>p.status==="pending"&&Date.parse(p.closeTime)<timeNow()-60000).slice(0,10);let changed=false;for(const p of pending){try{const d=await getJSON(`${KALSHI}/markets/${encodeURIComponent(p.ticker)}`);const result=d.market?.result;if(result==="yes"||result==="no"){p.result=result;p.correct=(p.direction==="UP"?"yes":"no")===result;p.status="settled";changed=true;}}catch(e){state.errors.settlement=e.message;}}if(changed)savePredictions();}
 function schedule(name,ms,fn){async function tick(){if(stopped)return;try{await fn();delete state.errors[name];}catch(e){state.errors[name]=e.message;console.warn(`${name}: ${e.message}`);}if(!stopped)setTimeout(tick,ms);}tick();}
 app.get("/healthz",(_req,res)=>res.json({ok:true,uptimeSeconds:Math.floor(process.uptime()),marketLoaded:!!state.market,btcLoaded:!!state.btcPrice,errors:state.errors}));
 app.get("/api/snapshot",(_req,res)=>{res.set("Cache-Control","no-store");res.json({...snapshot(),opinions:independentOpinions()});});
 app.get("/api/predictions",(_req,res)=>{res.set("Cache-Control","no-store");const rows=state.predictions.slice(-100).reverse();const settled=state.predictions.filter(p=>p.status==="settled");const wins=settled.filter(p=>p.correct).length;res.json({rows,stats:{total:state.predictions.length,settled:settled.length,wins,winRate:settled.length?wins/settled.length:null},persistent:!!process.env.DATA_DIR});});
 app.get("/api/ai-status",(_req,res)=>{res.set("Cache-Control","no-store");res.json({configured:false,model:"Coinbase candle trend (local)",status:independentOpinions().trend.status,reason:independentOpinions().trend.reason,callsToday:0});});
-app.get("/api/config",(_req,res)=>res.json({alertsConfigured:!!WEBHOOK,mode:"alerts-only",series:SERIES,historyPersistenceConfigured:!!process.env.DATA_DIR,aiConfigured:false,aiModel:"Coinbase candle trend (local)"}));
+app.get("/api/config",(_req,res)=>res.json({alertsConfigured:false,mode:"alerts-only",series:SERIES,historyPersistenceConfigured:!!process.env.DATA_DIR,aiConfigured:false,aiModel:"Coinbase candle trend (local)"}));
 
 // Isolated ETH/SOL feeds. Each has its own market, history, indicators and freshness.
 const EXTRA_MARKETS = {
@@ -290,6 +290,20 @@ function extraSnapshot(symbol){
   const opinions={lean:{direction:signal.direction,reason:reasons[0]||'Qualified conservative signal'},momentum:{direction:momentumDirection,reason:'60s and 180s price momentum'},orderbook:{direction:bookDirection,reason:pressure===null?'Book unavailable':'Order-book pressure '+(pressure*100).toFixed(0)+'%'},ai:{direction:ema9!==null&&ema21!==null&&rsi14!==null?ema9>ema21&&rsi14>55?'UP':ema9<ema21&&rsi14<45?'DOWN':'WAIT':'WAIT',reason:'EMA 9/21 and RSI 14',status:closes.length>=21?'ready':'waiting',generatedAt:s.candlesAt}};
   return {snapshotVersion:4,symbol,seriesTicker:EXTRA_MARKETS[symbol].series,timestamp:now,market:m,btcPrice:s.price,btcUpdatedAt:s.priceAt||null,marketUpdatedAt:s.marketAt||null,btcAgeMs:priceAge,marketAgeMs:marketAge,bookAgeMs:bookAge,btcStale,marketStale,bookStale,marketUsable,marketExpired:!m||Date.parse(m.close_time)<=now,btcError:s.errors.price||null,marketError:s.errors.market||null,bookError:s.errors.book||null,orderbook:b,btcHistory:s.history.slice(-750),yesHistory:s.yesHistory.slice(-750),candles:s.candles.slice(-60),candlesUpdatedAt:s.candlesAt||null,signal,directionalLean:lean,opinions};
 }
+// Read-only settlement lookup for locally simulated positions; no account or trading API.
+const settlementCache=new Map();
+app.get('/api/settlement/:ticker',async(req,res)=>{
+  const ticker=safeTicker(req.params.ticker);
+  if(!ticker)return res.status(400).json({error:'Invalid ticker'});
+  const cached=settlementCache.get(ticker),now=Date.now();
+  if(cached&&now-cached.at<30000)return res.json(cached.data);
+  try{const d=await getJSON(`${KALSHI}/markets/${encodeURIComponent(ticker)}`);
+    const m=d.market||{},result=['yes','no'].includes(m.result)?m.result:null;
+    const data={ticker,status:m.status||'unknown',result,closeTime:m.close_time||null};
+    settlementCache.set(ticker,{at:now,data});if(settlementCache.size>300)settlementCache.delete(settlementCache.keys().next().value);
+    res.json(data);
+  }catch(_){res.status(503).json({error:'Settlement feed unavailable'});}
+});
 app.get('/api/markets',(_req,res)=>res.json({symbols:['BTC','ETH','SOL'],series:{BTC:SERIES,ETH:EXTRA_MARKETS.ETH.series,SOL:EXTRA_MARKETS.SOL.series}}));
 app.get('/api/snapshot/:symbol',(req,res)=>{const symbol=String(req.params.symbol).toUpperCase();res.set('Cache-Control','no-store');if(symbol==='BTC')return res.json({...snapshot(),symbol:'BTC',opinions:independentOpinions()});if(!extraStates[symbol])return res.status(404).json({error:'Unsupported symbol'});res.json(extraSnapshot(symbol));});
 for(const symbol of Object.keys(EXTRA_MARKETS))for(const [kind,ms] of [['price',BTC_INTERVAL],['market',MARKET_INTERVAL],['book',MARKET_INTERVAL],['candles',CANDLES_INTERVAL]])schedule(`${symbol}_${kind}`,ms,()=>extraRefresh(symbol,kind));
