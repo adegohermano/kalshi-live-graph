@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b12">
-  <title>BTC 15-Minute Market Graph</title>
+  <title>BTC 15-Minute Market Dashboard</title>
   <style>
     :root {
       color-scheme: dark;
@@ -32,23 +32,24 @@
     }
 
     main {
-      width: min(1080px, calc(100% - 32px));
+      width: min(1120px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 28px 0 40px;
+      padding: 26px 0 40px;
     }
 
-    .topbar, .brand, .connection, .heading, .card-head, .metric, .chart-foot {
+    .topbar, .brand, .connection, .heading, .card-head, .metric,
+    .chart-foot, .signal-head, .market-stat-row {
       display: flex;
       align-items: center;
     }
 
-    .topbar, .heading, .card-head, .metric, .chart-foot {
+    .topbar, .heading, .card-head, .metric, .chart-foot,
+    .signal-head, .market-stat-row {
       justify-content: space-between;
       gap: 14px;
     }
 
     .topbar { margin-bottom: 28px; }
-
     .brand { gap: 12px; }
 
     .brand-icon {
@@ -90,9 +91,23 @@
       box-shadow: 0 0 0 4px rgba(255, 116, 130, .12);
     }
 
-    .heading { align-items: flex-end; margin-bottom: 18px; }
-    .heading h2 { margin: 0; font-size: 26px; letter-spacing: -.045em; line-height: 1.2; }
-    .heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .heading {
+      align-items: flex-end;
+      margin-bottom: 18px;
+    }
+
+    .heading h2 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -.045em;
+      line-height: 1.2;
+    }
+
+    .heading p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
 
     .clock {
       padding: 8px 12px;
@@ -118,11 +133,12 @@
       border-radius: 12px;
       color: #ffb4bc;
       background: rgba(255, 116, 130, .08);
+      overflow-wrap: anywhere;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.55fr) minmax(275px, 1fr);
+      grid-template-columns: minmax(0, 1.55fr) minmax(285px, 1fr);
       gap: 15px;
     }
 
@@ -137,11 +153,13 @@
     }
 
     .chart-card { grid-column: 1; padding: 19px 20px 15px; }
-    .details-card { grid-column: 2; grid-row: 1 / span 2; align-self: start; padding: 19px; }
+    .details-card { grid-column: 2; grid-row: 1 / span 3; align-self: start; padding: 19px; }
+    .signal-card { grid-column: 1; padding: 19px 20px; }
     .spot-card { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 17px 20px; }
+    .how-card { grid-column: 1 / -1; padding: 19px 20px; }
 
     .card-head { align-items: flex-start; }
-    .card-head h3, .details-card h3 { margin: 0; font-size: 14px; }
+    .card-head h3, .details-card h3, .how-card h3 { margin: 0; font-size: 14px; }
     .card-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 
     .live-tag {
@@ -154,13 +172,95 @@
       white-space: nowrap;
     }
 
-    .chart-wrap { position: relative; height: 270px; margin-top: 14px; }
-    #chart { display: block; width: 100%; height: 100%; overflow: visible; }
+    .chart-wrap {
+      position: relative;
+      height: 285px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    #chart {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
 
     .chart-foot {
       margin-top: 3px;
       color: var(--muted);
       font-size: 10px;
+    }
+
+    .signal-head { align-items: flex-start; }
+    .signal-title { margin: 0; font-size: 14px; }
+    .signal-caption { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+
+    .lean-badge {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--amber);
+      background: rgba(245, 199, 107, .07);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .lean-badge.up {
+      color: var(--green);
+      border-color: rgba(73, 223, 165, .23);
+      background: rgba(73, 223, 165, .08);
+    }
+
+    .lean-badge.down {
+      color: var(--red);
+      border-color: rgba(255, 116, 130, .23);
+      background: rgba(255, 116, 130, .08);
+    }
+
+    .lean-main {
+      margin: 17px 0 5px;
+      font-size: clamp(30px, 5vw, 42px);
+      line-height: 1.1;
+      font-weight: 760;
+      letter-spacing: -.06em;
+    }
+
+    .lean-main.up { color: var(--green); }
+    .lean-main.down { color: var(--red); }
+    .lean-main.wait { color: var(--amber); }
+
+    .signal-reason {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .conditions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .condition {
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .018);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .condition strong {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--text);
+      font-size: 11px;
     }
 
     .metric {
@@ -170,6 +270,7 @@
 
     .metric:last-child { border-bottom: 0; }
     .metric-label { color: var(--muted); font-size: 12px; }
+
     .metric-value {
       max-width: 58%;
       overflow-wrap: anywhere;
@@ -200,6 +301,14 @@
 
     .market-stat small { font-size: 10px; }
 
+    .how-card p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .how-card strong { color: var(--text); }
+
     footer {
       margin-top: 17px;
       color: var(--muted);
@@ -207,33 +316,41 @@
       line-height: 1.65;
     }
 
-    @media (max-width: 740px) {
-      main { width: min(100% - 24px, 560px); padding-top: 20px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 580px); padding-top: 20px; }
       .grid { grid-template-columns: 1fr; }
-      .chart-card, .details-card, .spot-card { grid-column: 1; grid-row: auto; }
-      .details-card { order: 2; }
+      .chart-card, .details-card, .signal-card, .spot-card, .how-card {
+        grid-column: 1;
+        grid-row: auto;
+      }
       .chart-card { order: 1; }
-      .spot-card { order: 3; }
-      .chart-wrap { height: 230px; }
+      .signal-card { order: 2; }
+      .details-card { order: 3; }
+      .spot-card { order: 4; }
+      .how-card { order: 5; }
+      .chart-wrap { height: 245px; }
     }
 
-    @media (max-width: 420px) {
+    @media (max-width: 430px) {
       .heading h2 { font-size: 22px; }
       .clock { padding: 7px 9px; font-size: 10px; }
-      .chart-card, .details-card { padding: 17px; }
+      .chart-card, .details-card, .signal-card, .how-card { padding: 16px; }
+      .conditions { grid-template-columns: 1fr; }
     }
   </style>
 </head>
+
 <body>
   <main>
     <header class="topbar">
       <div class="brand">
         <div class="brand-icon">₿</div>
         <div>
-          <h1>Market Graph</h1>
+          <h1>Market Dashboard</h1>
           <p>BTC · Kalshi 15-minute market</p>
         </div>
       </div>
+
       <div class="connection">
         <span class="dot" id="statusDot"></span>
         <span id="statusText">Connecting to market data</span>
@@ -248,7 +365,7 @@
       <div class="clock">Market closes <strong id="clock">--:--</strong></div>
     </section>
 
-    <div class="error" id="error"></div>
+    <div class="error" id="error" role="status"></div>
 
     <section class="grid">
       <article class="card chart-card">
@@ -259,18 +376,53 @@
           </div>
           <span class="live-tag">LIVE</span>
         </div>
+
         <div class="chart-wrap">
           <svg id="chart" viewBox="0 0 900 300" preserveAspectRatio="none"
-               role="img" aria-label="Live Kalshi YES price graph"></svg>
+               role="img" aria-label="Kalshi YES price over time"></svg>
         </div>
+
         <div class="chart-foot">
-          <span>Prices are polled about every 5 seconds</span>
+          <span>Updates about every 5 seconds</span>
           <span id="updated">Waiting for update</span>
+        </div>
+      </article>
+
+      <article class="card signal-card">
+        <div class="signal-head">
+          <div>
+            <h3 class="signal-title">Market lean</h3>
+            <p class="signal-caption">Rule-based snapshot, not a forecast</p>
+          </div>
+          <span class="lean-badge" id="leanBadge">WAIT</span>
+        </div>
+
+        <div class="lean-main wait" id="leanMain">WAIT</div>
+        <p class="signal-reason" id="leanReason">Waiting for enough market data.</p>
+
+        <div class="conditions">
+          <div class="condition">
+            <strong>Lean strength</strong>
+            <span id="leanStrength">Not available</span>
+          </div>
+          <div class="condition">
+            <strong>Distance to strike</strong>
+            <span id="strikeDistance">Not available</span>
+          </div>
+          <div class="condition">
+            <strong>YES odds / midpoint</strong>
+            <span id="yesOdds">Not available</span>
+          </div>
+          <div class="condition">
+            <strong>Market spread</strong>
+            <span id="marketSpread">Not available</span>
+          </div>
         </div>
       </article>
 
       <article class="card details-card">
         <h3>Market details</h3>
+
         <div class="metric">
           <span class="metric-label">BTC spot price</span>
           <span class="metric-value" id="btc">—</span>
@@ -280,20 +432,20 @@
           <span class="metric-value" id="strike">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">YES bid</span>
-          <span class="metric-value" id="yesBid">—</span>
+          <span class="metric-label">BTC vs. strike</span>
+          <span class="metric-value" id="btcVsStrike">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">YES ask</span>
-          <span class="metric-value" id="yesAsk">—</span>
+          <span class="metric-label">YES bid / ask</span>
+          <span class="metric-value" id="yesBidAsk">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">NO bid</span>
-          <span class="metric-value" id="noBid">—</span>
+          <span class="metric-label">NO bid / ask</span>
+          <span class="metric-value" id="noBidAsk">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">NO ask</span>
-          <span class="metric-value" id="noAsk">—</span>
+          <span class="metric-label">Time remaining</span>
+          <span class="metric-value" id="timeRemaining">—</span>
         </div>
       </article>
 
@@ -306,14 +458,20 @@
         <div class="market-stat">
           <span>Kalshi YES midpoint</span>
           <strong id="yesMid">—</strong>
-          <small id="closeLabel">Current market</small>
+          <small>Market price, not a guarantee</small>
         </div>
+      </article>
+
+      <article class="card how-card">
+        <h3>How to read the lean</h3>
+        <p><strong>UP lean:</strong> BTC is above the strike, YES midpoint is at least 55¢, the YES spread is no wider than 5¢, and more than 2 minutes remain.</p>
+        <p><strong>DOWN lean:</strong> BTC is below the strike, YES midpoint is at most 45¢, the NO spread is no wider than 5¢, and more than 2 minutes remain.</p>
+        <p><strong>WAIT:</strong> Conditions disagree, data is missing, the market is near the strike, the spread is wide, or the contract is close to ending. These are simple dashboard rules—not a trading recommendation.</p>
       </article>
     </section>
 
     <footer>
-      Market prices and the BTC spot price are informational only, not financial advice.
-      Prices may be delayed or unavailable, and market data can change quickly.
+      This dashboard displays public market data and a simple rule-based lean. It does not predict outcomes or provide financial advice. Prices can move quickly, data may be delayed, and you can lose money trading.
     </footer>
   </main>
 
@@ -322,12 +480,15 @@
 
     const RELAY_URL = "https://kalshi-live-graph.onrender.com";
     const POLL_INTERVAL_MS = 5000;
-    const MAX_POINTS = 180;
+    const MAX_POINTS = 240;
+    const CHART_WINDOW_MS = 15 * 60 * 1000;
 
     const $ = id => document.getElementById(id);
+
     let currentTicker = null;
     let points = [];
-    let latestMarket = null;
+    let currentSnapshot = null;
+    let pollInProgress = false;
 
     function setStatus(ok, text) {
       $("statusDot").className = ok ? "dot ok" : "dot bad";
@@ -342,20 +503,41 @@
 
     function readNumber(object, ...keys) {
       for (const key of keys) {
-        if (object && object[key] != null && object[key] !== "") {
-          const value = Number(object[key]);
-          if (Number.isFinite(value)) return value;
-        }
+        if (!object || object[key] == null || object[key] === "") continue;
+        const value = Number(object[key]);
+        if (Number.isFinite(value)) return value;
       }
       return null;
     }
 
-    function priceValue(market, side, kind) {
-      const dollars = readNumber(market, `${side}_${kind}_dollars`);
-      if (dollars != null) return dollars;
+    function contractPrice(market, side, kind) {
+      const dollarValue = readNumber(market, `${side}_${kind}_dollars`);
+      if (dollarValue != null) return dollarValue;
 
-      const cents = readNumber(market, `${side}_${kind}`);
-      return cents == null ? null : cents / 100;
+      const centValue = readNumber(market, `${side}_${kind}`);
+      return centValue == null ? null : centValue / 100;
+    }
+
+    function yesMidpoint(market) {
+      let yesBid = contractPrice(market, "yes", "bid");
+      let yesAsk = contractPrice(market, "yes", "ask");
+      const noBid = contractPrice(market, "no", "bid");
+
+      if (yesBid == null && noBid != null) yesBid = 1 - noBid;
+      if (yesAsk == null && yesBid != null) {
+        const noAsk = contractPrice(market, "no", "ask");
+        if (noAsk != null) yesAsk = 1 - noAsk;
+      }
+
+      if (yesBid != null && yesAsk != null) return (yesBid + yesAsk) / 2;
+      if (yesBid != null) return yesBid;
+      if (yesAsk != null) return yesAsk;
+
+      const lastDollarPrice = readNumber(market, "last_price_dollars");
+      if (lastDollarPrice != null) return lastDollarPrice;
+
+      const lastCentPrice = readNumber(market, "last_price");
+      return lastCentPrice == null ? null : lastCentPrice / 100;
     }
 
     function formatMoney(value) {
@@ -368,24 +550,12 @@
 
     function formatCents(value) {
       if (value == null || !Number.isFinite(value)) return "—";
-      return (value * 100).toFixed(1).replace(/\.0$/, "") + "¢";
+      return `${(value * 100).toFixed(1).replace(/\.0$/, "")}¢`;
     }
 
-    function getYesMid(market) {
-      const bid = priceValue(market, "yes", "bid");
-      let ask = priceValue(market, "yes", "ask");
-      const noBid = priceValue(market, "no", "bid");
-
-      if (ask == null && noBid != null) ask = 1 - noBid;
-      if (bid != null && ask != null) return (bid + ask) / 2;
-      if (bid != null) return bid;
-      if (ask != null) return ask;
-
-      const lastDollars = readNumber(market, "last_price_dollars");
-      if (lastDollars != null) return lastDollars;
-
-      const lastCents = readNumber(market, "last_price");
-      return lastCents == null ? null : lastCents / 100;
+    function formatSpread(value) {
+      if (value == null || !Number.isFinite(value)) return "Unavailable";
+      return `${(value * 100).toFixed(1).replace(/\.0$/, "")}¢`;
     }
 
     async function getSnapshot() {
@@ -404,7 +574,121 @@
         throw new Error(data.error || `Relay request failed (HTTP ${response.status}).`);
       }
 
+      if (!data.market) {
+        throw new Error("Relay response did not include a market.");
+      }
+
       return data;
+    }
+
+    function setLean(label, reason, strength) {
+      const badge = $("leanBadge");
+      const main = $("leanMain");
+
+      badge.textContent = label;
+      badge.className = "lean-badge" +
+        (label === "UP LEAN" ? " up" : label === "DOWN LEAN" ? " down" : "");
+
+      main.textContent = label;
+      main.className = "lean-main" +
+        (label === "UP LEAN" ? " up" : label === "DOWN LEAN" ? " down" : " wait");
+
+      $("leanReason").textContent = reason;
+      $("leanStrength").textContent = strength;
+    }
+
+    function updateLean(snapshot, values) {
+      const {
+        btc,
+        strike,
+        yesBid,
+        yesAsk,
+        noBid,
+        noAsk,
+        yesMid,
+        closeTime
+      } = values;
+
+      if (strike == null || strike <= 0 || yesMid == null) {
+        setLean(
+          "WAIT",
+          "The strike or YES market price is missing, so the dashboard cannot evaluate its checklist.",
+          "Not available"
+        );
+        return;
+      }
+
+      const secondsLeft = closeTime == null
+        ? null
+        : Math.floor((closeTime - Date.now()) / 1000);
+
+      if (secondsLeft != null && secondsLeft <= 120) {
+        setLean(
+          "WAIT",
+          "The contract is within its final 2 minutes. The dashboard avoids showing a directional lean this close to expiry.",
+          "Late market"
+        );
+        return;
+      }
+
+      const distanceFraction = Math.abs(btc - strike) / strike;
+      if (distanceFraction < 0.0003) {
+        setLean(
+          "WAIT",
+          "BTC is very close to the strike, so a small price move could change which side is above it.",
+          "Near strike"
+        );
+        return;
+      }
+
+      const yesSpread = yesBid != null && yesAsk != null ? yesAsk - yesBid : null;
+      const noSpread = noBid != null && noAsk != null ? noAsk - noBid : null;
+      const btcAboveStrike = btc > strike;
+
+      const upConditions =
+        btcAboveStrike &&
+        yesMid >= 0.55 &&
+        yesAsk != null &&
+        yesSpread != null &&
+        yesSpread <= 0.05;
+
+      const downConditions =
+        !btcAboveStrike &&
+        yesMid <= 0.45 &&
+        noAsk != null &&
+        noSpread != null &&
+        noSpread <= 0.05;
+
+      if (upConditions) {
+        const strength = yesMid >= 0.65 ? "Stronger alignment" : "Some alignment";
+        setLean(
+          "UP LEAN",
+          "BTC is above the strike and YES pricing agrees. This is a rule-based market snapshot, not a prediction.",
+          strength
+        );
+      } else if (downConditions) {
+        const strength = yesMid <= 0.35 ? "Stronger alignment" : "Some alignment";
+        setLean(
+          "DOWN LEAN",
+          "BTC is below the strike and YES pricing agrees with that direction. This is not a prediction.",
+          strength
+        );
+      } else {
+        const btcSide = btcAboveStrike ? "above" : "below";
+        let reason = `BTC is ${btcSide} the strike, but the price, odds, or spread checks do not all agree.`;
+
+        if (yesSpread == null || noSpread == null) {
+          reason = "Bid/ask spread data is incomplete, so the dashboard is staying neutral.";
+        } else if (yesMid > 0.45 && yesMid < 0.55) {
+          reason = "YES pricing is near the middle; the market does not show a clear directional lean by these rules.";
+        } else if ((btcAboveStrike && yesMid < 0.55) || (!btcAboveStrike && yesMid > 0.45)) {
+          reason = "BTC position and YES market pricing point in different directions.";
+        } else {
+          reason = "One or more spread or quote checks did not pass.";
+        }
+
+        setLean("WAIT", reason, "Mixed / weak");
+      }
     }
 
     function drawChart() {
@@ -417,99 +701,206 @@
       const bottom = 36;
       const plotWidth = width - left - right;
       const plotHeight = height - top - bottom;
-
       const now = Date.now();
-      const visible = points.filter(point => point.t >= now - 15 * 60 * 1000);
+      const startTime = now - CHART_WINDOW_MS;
 
-      if (visible.length < 2) {
-        svg.innerHTML =
-          `<line x1="${left}" y1="${top + plotHeight / 2}" x2="${width - right}" y2="${top + plotHeight / 2}" stroke="#263143" stroke-dasharray="5 7"/>` +
-          `<text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="#929db0" font-size="14">Collecting live price points…</text>`;
-        return;
-      }
+      const visible = points
+        .filter(point =>
+          Number.isFinite(point.t) &&
+          Number.isFinite(point.v) &&
+          point.t >= startTime &&
+          point.t <= now + 2000
+        )
+        .slice(-MAX_POINTS);
 
-      const rawMin = Math.min(...visible.map(point => point.v));
-      const rawMax = Math.max(...visible.map(point => point.v));
-      const padding = Math.max((rawMax - rawMin) * 0.18, 0.025);
+      const values = visible.map(point => point.v);
+      const rawMin = values.length ? Math.min(...values) : 0.5;
+      const rawMax = values.length ? Math.max(...values) : 0.5;
+      const padding = Math.max((rawMax - rawMin) * 0.2, 0.03);
       const min = Math.max(0, rawMin - padding);
       const max = Math.min(1, rawMax + padding);
-      const range = Math.max(max - min, 0.01);
-      const startTime = visible[0].t;
-      const endTime = Math.max(now, visible[visible.length - 1].t);
-      const timeRange = Math.max(endTime - startTime, 1);
+      const range = Math.max(max - min, 0.06);
 
-      const x = time => left + ((time - startTime) / timeRange) * plotWidth;
-      const y = value => top + ((max - value) / range) * plotHeight;
+      const x = time =>
+        left + Math.max(0, Math.min(1, (time - startTime) / CHART_WINDOW_MS)) * plotWidth;
 
-      const gridLines = [0, 1, 2, 3].map(index => {
-        const lineY = top + (plotHeight * index) / 3;
+      const y = value =>
+        top + ((max - value) / range) * plotHeight;
+
+      const grid = [0, 1, 2, 3].map(index => {
+        const gridY = top + (plotHeight * index) / 3;
         const value = max - (range * index) / 3;
-        return `<line x1="${left}" y1="${lineY}" x2="${width-right}" y2="${lineY}" stroke="#263143"/>` +
-          `<text x="${left-9}" y="${lineY+4}" text-anchor="end" fill="#929db0" font-size="11">${Math.round(value*100)}¢</text>`;
+        return `
+          <line x1="${left}" y1="${gridY}" x2="${width - right}" y2="${gridY}"
+                stroke="#263143"/>
+          <text x="${left - 9}" y="${gridY + 4}" text-anchor="end"
+                fill="#929db0" font-size="11">${Math.round(value * 100)}¢</text>
+        `;
       }).join("");
 
-      const path = visible.map((point, index) =>
+      const linePath = visible.map((point, index) =>
         `${index === 0 ? "M" : "L"} ${x(point.t).toFixed(1)} ${y(point.v).toFixed(1)}`
       ).join(" ");
 
       const last = visible[visible.length - 1];
-      const color = last.v >= visible[0].v ? "#49dfa5" : "#ff7482";
+      const first = visible[0];
+      const lineColor = last && first && last.v < first.v ? "#ff7482" : "#49dfa5";
 
-      svg.innerHTML =
-        gridLines +
-        `<path d="${path}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` +
-        `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="5" fill="${color}" stroke="#111722" stroke-width="3"/>` +
-        `<text x="${left}" y="${height-8}" fill="#929db0" font-size="11">${new Date(startTime).toLocaleTimeString()}</text>` +
-        `<text x="${width-right}" y="${height-8}" text-anchor="end" fill="#929db0" font-size="11">now</text>`;
+      const line = visible.length > 1
+        ? `<path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="3"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 clip-path="url(#plotClip)"/>`
+        : "";
+
+      const point = last
+        ? `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="5"
+                   fill="${lineColor}" stroke="#111722" stroke-width="3"/>`
+        : "";
+
+      const waitingText = visible.length
+        ? ""
+        : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle"
+                   fill="#929db0" font-size="14">Waiting for price data…</text>`;
+
+      const startLabel = new Date(startTime).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+
+      svg.innerHTML = `
+        <defs>
+          <clipPath id="plotClip">
+            <rect x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}"/>
+          </clipPath>
+        </defs>
+        ${grid}
+        ${line}
+        ${point}
+        ${waitingText}
+        <text x="${left}" y="${height - 8}" fill="#929db0" font-size="11">${startLabel}</text>
+        <text x="${width - right}" y="${height - 8}" text-anchor="end"
+              fill="#929db0" font-size="11">now</text>
+      `;
+    }
+
+    function updateClock() {
+      if (!currentSnapshot || !currentSnapshot.market) return;
+
+      const closeTime = Date.parse(currentSnapshot.market.close_time || "");
+      if (!Number.isFinite(closeTime)) {
+        $("clock").textContent = "--:--";
+        $("timeRemaining").textContent = "Unavailable";
+        return;
+      }
+
+      const seconds = Math.max(0, Math.floor((closeTime - Date.now()) / 1000));
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+
+      $("clock").textContent =
+        `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+
+      $("timeRemaining").textContent =
+        `${minutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
     }
 
     function render(snapshot) {
       const market = snapshot.market;
       const btc = Number(snapshot.btcPrice);
-      const mid = getYesMid(market);
 
-      if (!Number.isFinite(btc)) throw new Error("Relay returned an invalid BTC price.");
+      if (!Number.isFinite(btc)) {
+        throw new Error("Relay returned an invalid BTC price.");
+      }
 
       if (currentTicker !== market.ticker) {
         currentTicker = market.ticker;
-        latestMarket = market;
         points = [];
-      } else {
-        latestMarket = market;
       }
 
-      if (mid != null) {
-        points.push({ t: Number(snapshot.timestamp) || Date.now(), v: mid });
-        if (points.length > MAX_POINTS) points = points.slice(-MAX_POINTS);
-      }
+      currentSnapshot = snapshot;
+
+      const yesBid = contractPrice(market, "yes", "bid");
+      const yesAsk = contractPrice(market, "yes", "ask");
+      const noBid = contractPrice(market, "no", "bid");
+      const noAsk = contractPrice(market, "no", "ask");
+      const yesMid = yesMidpoint(market);
+      const strike = readNumber(market, "floor_strike", "cap_strike");
+      const closeTimeValue = Date.parse(market.close_time || "");
+      const closeTime = Number.isFinite(closeTimeValue) ? closeTimeValue : null;
+      const timestamp = Number(snapshot.timestamp) || Date.now();
 
       $("btc").textContent = formatMoney(btc);
       $("btcLarge").textContent = formatMoney(btc);
       $("marketTicker").textContent = market.ticker || "Current Kalshi market";
-      $("closeLabel").textContent = market.ticker || "Current market";
-      $("yesMid").textContent = formatCents(mid);
-
-      $("yesBid").textContent = formatCents(priceValue(market, "yes", "bid"));
-      $("yesAsk").textContent = formatCents(priceValue(market, "yes", "ask"));
-      $("noBid").textContent = formatCents(priceValue(market, "no", "bid"));
-      $("noAsk").textContent = formatCents(priceValue(market, "no", "ask"));
-
-      const strike = readNumber(market, "floor_strike", "cap_strike");
+      $("yesMid").textContent = formatCents(yesMid);
+      $("yesBidAsk").textContent = `${formatCents(yesBid)} / ${formatCents(yesAsk)}`;
+      $("noBidAsk").textContent = `${formatCents(noBid)} / ${formatCents(noAsk)}`;
       $("strike").textContent = strike == null ? "Not provided" : formatMoney(strike);
 
-      const closeTime = Date.parse(market.close_time || "");
-      if (Number.isFinite(closeTime)) {
-        const seconds = Math.max(0, Math.floor((closeTime - Date.now()) / 1000));
-        $("clock").textContent =
-          String(Math.floor(seconds / 60)).padStart(2, "0") +
-          ":" +
-          String(seconds % 60).padStart(2, "0");
-        $("subtitle").textContent = `${market.ticker} · closes ${new Date(closeTime).toLocaleTimeString()}`;
+      if (strike != null && strike > 0) {
+        const difference = btc - strike;
+        const percent = (difference / strike) * 100;
+        const prefix = difference > 0 ? "+" : "";
+        $("btcVsStrike").textContent =
+          `${prefix}${formatMoney(difference)} (${prefix}${percent.toFixed(3)}%)`;
       } else {
-        $("clock").textContent = "--:--";
+        $("btcVsStrike").textContent = "Not provided";
+      }
+
+      if (closeTime != null) {
+        $("subtitle").textContent =
+          `${market.ticker || "Current market"} · closes ${new Date(closeTime).toLocaleTimeString()}`;
+      } else {
         $("subtitle").textContent = market.ticker || "Current market";
       }
 
+      const yesSpread = yesBid != null && yesAsk != null ? yesAsk - yesBid : null;
+      const noSpread = noBid != null && noAsk != null ? noAsk - noBid : null;
+      const displayedSpread = yesSpread != null ? yesSpread : noSpread;
+
+      $("marketSpread").textContent = displayedSpread == null
+        ? "Unavailable"
+        : `${formatSpread(displayedSpread)}${yesSpread != null ? " YES" : " NO"}`;
+
+      $("yesOdds").textContent = yesMid == null
+        ? "Unavailable"
+        : `${Math.round(yesMid * 100)}¢ midpoint`;
+
+      const pointValue = yesMid;
+      if (pointValue != null && pointValue >= 0 && pointValue <= 1) {
+        const lastPoint = points[points.length - 1];
+
+        if (!lastPoint || timestamp > lastPoint.t) {
+          points.push({ t: timestamp, v: pointValue });
+        } else {
+          points[points.length - 1] = { t: timestamp, v: pointValue };
+        }
+
+        if (points.length > MAX_POINTS) {
+          points = points.slice(-MAX_POINTS);
+        }
+      }
+
+      if (strike != null && strike > 0 && btc > 0) {
+        const distancePct = Math.abs((btc - strike) / strike) * 100;
+        $("strikeDistance").textContent =
+          `${formatMoney(Math.abs(btc - strike))} (${distancePct.toFixed(3)}%)`;
+      } else {
+        $("strikeDistance").textContent = "Unavailable";
+      }
+
+      updateLean(snapshot, {
+        btc,
+        strike,
+        yesBid,
+        yesAsk,
+        noBid,
+        noAsk,
+        yesMid,
+        closeTime
+      });
+
+      updateClock();
       $("updated").textContent = new Date().toLocaleTimeString();
       drawChart();
       setStatus(true, "Market data connected");
@@ -517,24 +908,23 @@
     }
 
     async function refresh() {
+      if (pollInProgress) return;
+      pollInProgress = true;
+
       try {
         const snapshot = await getSnapshot();
         render(snapshot);
       } catch (error) {
         setStatus(false, "Market data unavailable");
         showError(error.message || "Could not load market data.");
+      } finally {
+        pollInProgress = false;
       }
     }
 
     refresh();
     setInterval(refresh, POLL_INTERVAL_MS);
-    setInterval(() => {
-      if (latestMarket) render({
-        timestamp: Date.now(),
-        market: latestMarket,
-        btcPrice: Number($("btc").textContent.replace(/[$,]/g, ""))
-      });
-    }, 1000);
+    setInterval(updateClock, 1000);
   </script>
 </body>
 </html>
