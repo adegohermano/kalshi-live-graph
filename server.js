@@ -1,454 +1,58 @@
 "use strict";
-
 const express = require("express");
-
+const fs = require("node:fs");
+const path = require("node:path");
 const app = express();
-
 const PORT = Number(process.env.PORT) || 10000;
 const SERIES = process.env.KALSHI_SERIES_TICKER || "KXBTC15M";
-
-const KALSHI_API =
-  process.env.KALSHI_API_BASE ||
-  "https://external-api.kalshi.com/trade-api/v2";
-
-const COINBASE_API =
-  process.env.COINBASE_API_BASE ||
-  "https://api.exchange.coinbase.com/products/BTC-USD";
-
-const DEFAULT_FRONTEND_ORIGIN =
-  "https://kalshi-live-graph-2.onrender.com";
-
-const MARKET_REFRESH_MS = 30_000;
-const BTC_REFRESH_MS = 10_000;
-const REQUEST_TIMEOUT_MS = 12_000;
-const MARKET_STALE_AFTER_MS = 90_000;
-const BTC_STALE_AFTER_MS = 30_000;
-const MAX_BACKOFF_MS = 5 * 60_000;
-const MAX_RETRY_AFTER_MS = 60 * 60_000;
-
-function parseOrigins() {
-  const configured =
-    process.env.FRONTEND_ORIGINS ||
-    process.env.FRONTEND_ORIGIN ||
-    DEFAULT_FRONTEND_ORIGIN;
-
-  return new Set(
-    configured
-      .split(",")
-      .map(value => value.trim())
-      .filter(Boolean)
-      .map(value => {
-        try {
-          return new URL(value).origin;
-        } catch {
-          console.warn(`Ignoring invalid frontend origin: ${value}`);
-          return null;
-        }
-      })
-      .filter(Boolean)
-  );
-}
-
-const ALLOWED_ORIGINS = parseOrigins();
-
-let cachedMarket = null;
-let cachedBtcPrice = null;
-
-let marketUpdatedAt = null;
-let btcUpdatedAt = null;
-let lastMarketCheckAt = null;
-let lastBtcCheckAt = null;
-
-let lastMarketError = null;
-let lastBtcError = null;
-
-let marketFailures = 0;
-let btcFailures = 0;
-
-let marketTimer = null;
-let btcTimer = null;
-let server = null;
-let shuttingDown = false;
-
+const KALSHI = process.env.KALSHI_API_BASE || "https://external-api.kalshi.com/trade-api/v2";
+const COINBASE = process.env.COINBASE_API_BASE || "https://api.exchange.coinbase.com/products/BTC-USD";
+const ORIGINS = new Set((process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || "https://kalshi-live-graph-2.onrender.com").split(",").map(s => s.trim()).filter(Boolean));
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const DATA_FILE = path.join(DATA_DIR, "predictions.json");
+const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || "";
+const BTC_INTERVAL = 5000, MARKET_INTERVAL = 10000, CANDLES_INTERVAL = 60000;
+const FRESH_BTC = 20000, FRESH_MARKET = 35000;
+const state = {btcPrice:null,btcUpdatedAt:0,market:null,marketUpdatedAt:0,orderbook:null,bookUpdatedAt:0,candles:[],candlesUpdatedAt:0,btcHistory:[],yesHistory:[],errors:{},signals:[],predictions:[],lastAlertKey:"",marketTicker:null};
+let stopped = false;
 app.disable("x-powered-by");
-app.disable("etag");
-
-app.use((req, res, next) => {
-  const origin = req.get("Origin");
-
-  res.set("Vary", "Origin");
-  res.set("X-Content-Type-Options", "nosniff");
-
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
-    res.set("Access-Control-Allow-Origin", origin);
-    res.set("Access-Control-Allow-Methods", "GET,OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Access-Control-Max-Age", "600");
-  }
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
-class UpstreamError extends Error {
-  constructor(message, options = {}) {
-    super(message);
-    this.name = "UpstreamError";
-    this.status = options.status ?? null;
-    this.retryAfterMs = options.retryAfterMs ?? null;
-  }
-}
-
-function getRetryAfterMs(response) {
-  const header = response.headers.get("retry-after");
-  if (!header) return null;
-
-  const seconds = Number(header);
-
-  if (Number.isFinite(seconds)) {
-    return Math.min(
-      MAX_RETRY_AFTER_MS,
-      Math.max(1_000, seconds * 1_000)
-    );
-  }
-
-  const retryDate = Date.parse(header);
-
-  if (Number.isFinite(retryDate)) {
-    return Math.min(
-      MAX_RETRY_AFTER_MS,
-      Math.max(1_000, retryDate - Date.now())
-    );
-  }
-
-  return null;
-}
-
-function getBackoffMs(failures, baseDelayMs, retryAfterMs = null) {
-  const exponent = Math.min(Math.max(failures - 1, 0), 10);
-  const exponential = Math.min(
-    baseDelayMs * (2 ** exponent),
-    MAX_BACKOFF_MS
-  );
-
-  const minimumDelay = Math.max(exponential, retryAfterMs || 0);
-  const jitter = Math.floor(
-    Math.random() * Math.min(10_000, minimumDelay * 0.2)
-  );
-
-  return minimumDelay + jitter;
-}
-
-async function fetchJSON(url, source) {
-  let response;
-
-  try {
-    response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "btc-kalshi-dashboard/1.0"
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-    });
-  } catch (error) {
-    throw new UpstreamError(
-      `${source} network request failed: ${error.message}`
-    );
-  }
-
-  if (response.status === 429) {
-    const retryAfterMs = getRetryAfterMs(response);
-
-    if (response.body) {
-      try {
-        await response.body.cancel();
-      } catch {
-        // Ignore response-body cleanup errors.
-      }
-    }
-
-    throw new UpstreamError(
-      `${source} rate-limited the request (HTTP 429).`,
-      { status: 429, retryAfterMs }
-    );
-  }
-
-  if (!response.ok) {
-    if (response.body) {
-      try {
-        await response.body.cancel();
-      } catch {
-        // Ignore response-body cleanup errors.
-      }
-    }
-
-    throw new UpstreamError(
-      `${source} request failed (HTTP ${response.status}).`,
-      { status: response.status }
-    );
-  }
-
-  try {
-    return await response.json();
-  } catch {
-    throw new UpstreamError(`${source} returned invalid JSON.`);
-  }
-}
-
-async function findCurrentMarket() {
-  const url = new URL(`${KALSHI_API}/markets`);
-  url.searchParams.set("series_ticker", SERIES);
-  url.searchParams.set("status", "open");
-  url.searchParams.set("limit", "200");
-
-  const data = await fetchJSON(url, "Kalshi");
-
-  if (!data || !Array.isArray(data.markets)) {
-    throw new UpstreamError("Kalshi returned an unexpected markets response.");
-  }
-
-  const now = Date.now();
-
-  const markets = data.markets
-    .filter(market => {
-      const closeTime = Date.parse(market?.close_time || "");
-      return Number.isFinite(closeTime) && closeTime > now;
-    })
-    .sort(
-      (a, b) =>
-        Date.parse(a.close_time) - Date.parse(b.close_time)
-    );
-
-  return markets[0] || null;
-}
-
-function scheduleMarketRefresh(delayMs) {
-  if (shuttingDown) return;
-  clearTimeout(marketTimer);
-  marketTimer = setTimeout(refreshMarket, delayMs);
-}
-
-function scheduleBtcRefresh(delayMs) {
-  if (shuttingDown) return;
-  clearTimeout(btcTimer);
-  btcTimer = setTimeout(refreshBtc, delayMs);
-}
-
-async function refreshMarket() {
-  let nextDelayMs = MARKET_REFRESH_MS;
-  lastMarketCheckAt = Date.now();
-
-  try {
-    const market = await findCurrentMarket();
-    lastMarketCheckAt = Date.now();
-
-    if (!market) {
-      cachedMarket = null;
-      marketUpdatedAt = null;
-      lastMarketError = `No open market found for series ${SERIES}.`;
-      marketFailures = 0;
-      console.warn("Kalshi refresh:", lastMarketError);
-    } else {
-      cachedMarket = market;
-      marketUpdatedAt = Date.now();
-      lastMarketError = null;
-      marketFailures = 0;
-    }
-  } catch (error) {
-    lastMarketCheckAt = Date.now();
-    marketFailures += 1;
-    lastMarketError = error.message;
-    nextDelayMs = getBackoffMs(
-      marketFailures,
-      MARKET_REFRESH_MS,
-      error.retryAfterMs
-    );
-
-    console.error(
-      `Kalshi refresh failed; retrying in ${Math.ceil(nextDelayMs / 1000)}s:`,
-      error.message
-    );
-  } finally {
-    scheduleMarketRefresh(nextDelayMs);
-  }
-}
-
-async function refreshBtc() {
-  let nextDelayMs = BTC_REFRESH_MS;
-  lastBtcCheckAt = Date.now();
-
-  try {
-    const ticker = await fetchJSON(`${COINBASE_API}/ticker`, "Coinbase");
-    const price = Number(ticker?.price);
-
-    if (!Number.isFinite(price) || price <= 0) {
-      throw new UpstreamError("Coinbase returned an invalid BTC price.");
-    }
-
-    cachedBtcPrice = price;
-    btcUpdatedAt = Date.now();
-    lastBtcCheckAt = btcUpdatedAt;
-    lastBtcError = null;
-    btcFailures = 0;
-  } catch (error) {
-    lastBtcCheckAt = Date.now();
-    btcFailures += 1;
-    lastBtcError = error.message;
-    nextDelayMs = getBackoffMs(
-      btcFailures,
-      BTC_REFRESH_MS,
-      error.retryAfterMs
-    );
-
-    console.error(
-      `Coinbase refresh failed; retrying in ${Math.ceil(nextDelayMs / 1000)}s:`,
-      error.message
-    );
-  } finally {
-    scheduleBtcRefresh(nextDelayMs);
-  }
-}
-
-function makeSnapshot() {
-  const now = Date.now();
-
-  const marketAgeMs =
-    marketUpdatedAt == null ? null : Math.max(0, now - marketUpdatedAt);
-
-  const btcAgeMs =
-    btcUpdatedAt == null ? null : Math.max(0, now - btcUpdatedAt);
-
-  const closeTime = cachedMarket
-    ? Date.parse(cachedMarket.close_time || "")
-    : NaN;
-
-  const marketExpired =
-    !Number.isFinite(closeTime) || closeTime <= now;
-
-  const marketStale =
-    !cachedMarket ||
-    marketAgeMs == null ||
-    marketAgeMs > MARKET_STALE_AFTER_MS;
-
-  const btcStale =
-    cachedBtcPrice == null ||
-    btcAgeMs == null ||
-    btcAgeMs > BTC_STALE_AFTER_MS;
-
-  return {
-    snapshotVersion: 1,
-    timestamp: now,
-    seriesTicker: SERIES,
-
-    market: cachedMarket,
-    btcPrice: cachedBtcPrice,
-
-    marketUpdatedAt,
-    btcUpdatedAt,
-    lastMarketCheckAt,
-    lastBtcCheckAt,
-    marketAgeMs,
-    btcAgeMs,
-
-    marketStale,
-    btcStale,
-    marketExpired,
-    marketUsable:
-      Boolean(cachedMarket) &&
-      cachedBtcPrice != null &&
-      !marketStale &&
-      !btcStale &&
-      !marketExpired,
-
-    marketError: lastMarketError,
-    btcError: lastBtcError
-  };
-}
-
-app.get("/", (_req, res) => {
-  res
-    .set("Cache-Control", "no-store")
-    .type("text")
-    .send("Kalshi BTC relay is running.");
-});
-
-app.get("/healthz", (_req, res) => {
-  res.set("Cache-Control", "no-store");
-
-  res.json({
-    ok: true,
-    uptimeSeconds: Math.floor(process.uptime()),
-    marketLoaded: Boolean(cachedMarket),
-    btcLoaded: cachedBtcPrice != null,
-    marketUpdatedAt,
-    btcUpdatedAt,
-    marketError: lastMarketError,
-    btcError: lastBtcError
-  });
-});
-
-app.get("/api/snapshot", (_req, res) => {
-  res.set("Cache-Control", "no-store");
-
-  const snapshot = makeSnapshot();
-
-  if (!snapshot.market || snapshot.btcPrice == null) {
-    return res.status(503).json({
-      ...snapshot,
-      error:
-        lastMarketError ||
-        lastBtcError ||
-        "Market data is loading. Try again shortly."
-    });
-  }
-
-  return res.json(snapshot);
-});
-
-app.use((_req, res) => {
-  res.status(404).json({ error: "Not found." });
-});
-
-app.use((error, _req, res, _next) => {
-  console.error("Unhandled server error:", error);
-  res.status(500).json({ error: "Internal server error." });
-});
-
-function shutdown(signal) {
-  if (shuttingDown) return;
-
-  shuttingDown = true;
-  console.log(`${signal} received; shutting down.`);
-
-  clearTimeout(marketTimer);
-  clearTimeout(btcTimer);
-
-  if (!server) {
-    process.exit(0);
-    return;
-  }
-
-  server.close(() => process.exit(0));
-
-  if (typeof server.closeAllConnections === "function") {
-    server.closeAllConnections();
-  }
-
-  setTimeout(() => process.exit(1), 10_000).unref();
-}
-
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-
-server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Relay listening on port ${PORT}`);
-  console.log(`Kalshi series: ${SERIES}`);
-  console.log(`Allowed frontend origins: ${[...ALLOWED_ORIGINS].join(", ")}`);
-});
-
-refreshMarket();
-refreshBtc();
+app.use((req,res,next)=>{ const origin=req.get("origin");res.set("Vary","Origin");res.set("X-Content-Type-Options","nosniff");if(origin && ORIGINS.has(origin)){res.set("Access-Control-Allow-Origin",origin);res.set("Access-Control-Allow-Methods","GET,OPTIONS");res.set("Access-Control-Allow-Headers","Content-Type");}if(req.method==="OPTIONS")return res.sendStatus(204);next();});
+app.use("/data", (_req,res)=>res.status(404).end());
+app.use(express.static(__dirname,{index:"index.html",extensions:["html"],dotfiles:"ignore"}));
+function numeric(x){if(x===null||x===undefined||x==="")return null;const n=Number(x);return Number.isFinite(n)?n:null;}
+function first(o,keys){for(const k of keys){const n=numeric(o?.[k]);if(n!==null)return n;}return null;}
+function quote(m,side,kind){const dollars=first(m,[`${side}_${kind}_dollars`]);return dollars!==null?dollars:(()=>{const cents=first(m,[`${side}_${kind}`]);return cents===null?null:cents/100;})();}
+function strikeOf(m){return first(m,["floor_strike","strike_price","strike","custom_strike","cap_strike"]);}
+function timeNow(){return Date.now();}
+function pushHistory(arr,value,ts,windowMs=3600000){if(value===null)return;arr.push({t:ts,value});while(arr.length && (arr[0].t<ts-windowMs||arr.length>1500))arr.shift();}
+function trend(history,now,ms){const latest=history.at(-1);const older=[...history].reverse().find(p=>p.t<=now-ms && p.t>=now-ms-20000);return latest&&older&&older.value>0?(latest.value/older.value-1)*10000:null;}
+function volatility(history){const h=history.slice(-60);if(h.length<12)return null;const returns=[];for(let i=1;i<h.length;i++)if(h[i-1].value>0)returns.push(Math.log(h[i].value/h[i-1].value));if(!returns.length)return null;const mean=returns.reduce((a,b)=>a+b,0)/returns.length;return Math.sqrt(returns.reduce((a,b)=>a+(b-mean)**2,0)/returns.length)*10000;}
+function parseBook(data){const raw=data?.orderbook_fp;if(!raw)return null;const levels=(side)=>Array.isArray(raw[side])?raw[side].map(row=>({price:numeric(row?.[0]),size:numeric(row?.[1])})).filter(x=>x.price!==null&&x.price>=0&&x.price<=1&&x.size!==null&&x.size>=0).sort((a,b)=>b.price-a.price).slice(0,12):[];const yes=levels("yes_dollars"),no=levels("no_dollars");const yesBid=yes[0]?.price??null,noBid=no[0]?.price??null;return {yes,no,yesBid,noBid,yesAsk:noBid===null?null:1-noBid,noAsk:yesBid===null?null:1-yesBid};}
+async function getJSON(url){const r=await fetch(url,{headers:{Accept:"application/json","User-Agent":"btc-kalshi-dashboard/2.0"},signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(`HTTP ${r.status} from ${new URL(url).hostname}`);return r.json();}
+function safeTicker(t){return /^[A-Za-z0-9_-]{3,120}$/.test(t||"")?t:null;}
+async function refreshBTC(){const data=await getJSON(`${COINBASE}/ticker`);const n=numeric(data?.price);if(n===null||n<=0)throw Error("Invalid Coinbase price");state.btcPrice=n;state.btcUpdatedAt=timeNow();pushHistory(state.btcHistory,n,state.btcUpdatedAt);}
+async function refreshMarket(){const url=new URL(`${KALSHI}/markets`);url.searchParams.set("series_ticker",SERIES);url.searchParams.set("status","open");url.searchParams.set("limit","200");const data=await getJSON(url);if(!Array.isArray(data.markets))throw Error("Unexpected Kalshi markets response");const now=timeNow();const candidates=data.markets.filter(m=>safeTicker(m.ticker)&&Date.parse(m.close_time)>now&&Date.parse(m.open_time||0)<=now).sort((a,b)=>Date.parse(a.close_time)-Date.parse(b.close_time));const next=candidates[0]||null;if(next?.ticker!==state.marketTicker){state.marketTicker=next?.ticker||null;state.orderbook=null;state.bookUpdatedAt=0;state.yesHistory=[];state.lastAlertKey="";}state.market=next;state.marketUpdatedAt=now;if(next){const mid=first(next,["yes_bid_dollars"]);if(mid!==null)pushHistory(state.yesHistory,mid,now);}}
+async function refreshBook(){const ticker=safeTicker(state.market?.ticker);if(!ticker){state.orderbook=null;return;}const data=await getJSON(`${KALSHI}/markets/${encodeURIComponent(ticker)}/orderbook`);if(state.market?.ticker!==ticker)return;const book=parseBook(data);if(!book)throw Error("Order book missing fixed-point bids");state.orderbook=book;state.bookUpdatedAt=timeNow();const mid=book.yesBid!==null&&book.yesAsk!==null?(book.yesBid+book.yesAsk)/2:null;pushHistory(state.yesHistory,mid,state.bookUpdatedAt);}
+async function refreshCandles(){const end=Math.floor(timeNow()/1000),start=end-3600;const u=new URL(`${COINBASE}/candles`);u.searchParams.set("granularity","60");u.searchParams.set("start",new Date(start*1000).toISOString());u.searchParams.set("end",new Date(end*1000).toISOString());const rows=await getJSON(u);if(!Array.isArray(rows))throw Error("Coinbase candles unavailable");state.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(x=>x!==null)).sort((a,b)=>a.t-b.t);state.candlesUpdatedAt=timeNow();}
+function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:2,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now)};}
+function calculateSignal(now){const m=state.market,b=state.orderbook,spot=state.btcPrice,strike=strikeOf(m);const secondsLeft=m?(Date.parse(m.close_time)-now)/1000:null;const momentum60=trend(state.btcHistory,now,60000),momentum180=trend(state.btcHistory,now,180000),vol=volatility(state.btcHistory);const distanceBps=strike&&spot?(spot/strike-1)*10000:null;const bid=b?.yesBid??quote(m,"yes","bid"),ask=b?.yesAsk??quote(m,"yes","ask");const spread=bid!==null&&ask!==null?ask-bid:null;const reasons=[];if(!m||!spot||!strike)reasons.push("Missing market, BTC price, or verified strike");if(!state.btcUpdatedAt||now-state.btcUpdatedAt>FRESH_BTC||!state.marketUpdatedAt||now-state.marketUpdatedAt>FRESH_MARKET)reasons.push("Stale market data");if(!b||now-state.bookUpdatedAt>FRESH_MARKET)reasons.push("Order book unavailable or stale");if(secondsLeft===null||secondsLeft<=120)reasons.push("Less than two minutes remain");if(momentum60===null||momentum180===null||vol===null)reasons.push("Building trend and volatility history");if(spread===null||spread<0||spread>0.05)reasons.push("Spread missing or wider than 5¢");if(distanceBps!==null&&Math.abs(distanceBps)<Math.max(3,(vol||0)*0.8))reasons.push("Price too close to strike for current volatility");let direction="WAIT",strength=null;if(!reasons.length){const up=[distanceBps>0,momentum60>0,momentum180>0,ask!==null&&ask>=0.5];const down=[distanceBps<0,momentum60<0,momentum180<0,bid!==null&&bid<=0.5];const u=up.filter(Boolean).length,d=down.filter(Boolean).length;strength=Math.round(100*Math.max(u,d)/4);if(u===4)direction="UP";else if(d===4)direction="DOWN";else reasons.push("Momentum, strike, and market pricing disagree");}return {direction,strength,reasons,momentum60,momentum180,volatilityBps:vol,distanceBps,spread,secondsLeft,yesBid:bid,yesAsk:ask,model:"experimental-checklist-v2",probability:null};}
+function loadPredictions(){try{const rows=JSON.parse(fs.readFileSync(DATA_FILE,"utf8"));if(Array.isArray(rows))state.predictions=rows.slice(-1000);}catch(e){if(e.code!=="ENOENT")console.warn("Could not load history:",e.message);}}
+function savePredictions(){try{fs.mkdirSync(DATA_DIR,{recursive:true});const tmp=DATA_FILE+".tmp";fs.writeFileSync(tmp,JSON.stringify(state.predictions.slice(-1000)));fs.renameSync(tmp,DATA_FILE);}catch(e){console.warn("History not persisted:",e.message);}}
+async function notifyDiscord(p){if(!WEBHOOK)return;try{const content=`📊 **Kalshi BTC 15m alert (experimental)**\n${p.direction} · ${p.ticker}\nBTC: $${p.btcPrice.toFixed(2)} · Strike: $${p.strike.toFixed(2)}\nYES bid/ask: ${Math.round(p.yesBid*100)}¢ / ${Math.round(p.yesAsk*100)}¢\nNo automatic trades. Verify market rules and fees.`;const r=await fetch(WEBHOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(8000)});if(!r.ok)console.warn("Discord webhook HTTP",r.status);}catch(e){console.warn("Discord webhook failed:",e.message);}}
+async function captureSignal(){const s=calculateSignal(timeNow()),m=state.market;if(s.direction==="WAIT"||!m)return;const key=`${m.ticker}:${s.direction}`;if(state.lastAlertKey===key)return;state.lastAlertKey=key;const record={id:`${m.ticker}:${Date.now()}`,ticker:m.ticker,direction:s.direction,createdAt:Date.now(),closeTime:m.close_time,btcPrice:state.btcPrice,strike:strikeOf(m),yesBid:s.yesBid,yesAsk:s.yesAsk,strength:s.strength,result:null,correct:null,status:"pending",model:s.model};state.predictions.push(record);state.predictions=state.predictions.slice(-1000);savePredictions();await notifyDiscord(record);}
+async function settlePending(){const pending=state.predictions.filter(p=>p.status==="pending"&&Date.parse(p.closeTime)<timeNow()-60000).slice(0,10);let changed=false;for(const p of pending){try{const d=await getJSON(`${KALSHI}/markets/${encodeURIComponent(p.ticker)}`);const result=d.market?.result;if(result==="yes"||result==="no"){p.result=result;p.correct=(p.direction==="UP"?"yes":"no")===result;p.status="settled";changed=true;}}catch(e){state.errors.settlement=e.message;}}if(changed)savePredictions();}
+function schedule(name,ms,fn){async function tick(){if(stopped)return;try{await fn();delete state.errors[name];}catch(e){state.errors[name]=e.message;console.warn(`${name}: ${e.message}`);}if(!stopped)setTimeout(tick,ms);}tick();}
+app.get("/healthz",(_req,res)=>res.json({ok:true,uptimeSeconds:Math.floor(process.uptime()),marketLoaded:!!state.market,btcLoaded:!!state.btcPrice,errors:state.errors}));
+app.get("/api/snapshot",(_req,res)=>{res.set("Cache-Control","no-store");res.json(snapshot());});
+app.get("/api/predictions",(_req,res)=>{res.set("Cache-Control","no-store");const rows=state.predictions.slice(-100).reverse();const settled=state.predictions.filter(p=>p.status==="settled");const wins=settled.filter(p=>p.correct).length;res.json({rows,stats:{total:state.predictions.length,settled:settled.length,wins,winRate:settled.length?wins/settled.length:null},persistent:!!process.env.DATA_DIR});});
+app.get("/api/config",(_req,res)=>res.json({alertsConfigured:!!WEBHOOK,mode:"alerts-only",series:SERIES,historyPersistenceConfigured:!!process.env.DATA_DIR}));
+app.use((_req,res)=>res.status(404).json({error:"Not found"}));
+loadPredictions();
+schedule("btc",BTC_INTERVAL,refreshBTC);
+schedule("market",MARKET_INTERVAL,refreshMarket);
+schedule("book",MARKET_INTERVAL,refreshBook);
+schedule("candles",CANDLES_INTERVAL,refreshCandles);
+schedule("signals",15000,captureSignal);
+schedule("settlement",60000,settlePending);
+const server=app.listen(PORT,"0.0.0.0",()=>console.log(`BTC Kalshi alerts-only dashboard on port ${PORT}; series ${SERIES}`));
+for(const sig of ["SIGTERM","SIGINT"])process.on(sig,()=>{stopped=true;server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),10000).unref();});
