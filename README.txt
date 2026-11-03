@@ -1,0 +1,1 @@
+Kalshi BTC 15m dashboard: replace BOTH index.html and server.js in the GitHub repository. Deploy the Node Web Service and the frontend Static Site. No OpenAI key needed; remove OPENAI_API_KEY from Render Environment. The fourth opinion is a Coinbase candle trend heuristic, not a validated forecast. Preserve package.json and other repository files.

@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b12">
-  <title>BTC Market Monitor</title>
+  <title>VECTOR / BTC · Kalshi Market Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: dark;
@@ -30,7 +33,7 @@
       background:
         radial-gradient(ellipse at 50% -15%, rgba(79, 100, 189, .17), transparent 48%),
         var(--bg);
-      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 14px/1.5 "Manrope", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
 
     button { font: inherit; }
@@ -370,6 +373,16 @@
     .opinion-direction.up{color:var(--green)}.opinion-direction.down{color:var(--red)}
     @media(max-width:760px){.opinion-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:430px){.opinion-grid{grid-template-columns:1fr}}
+    /* Visual refresh; retains existing DOM IDs and data handling. */
+    :root { --bg:#070b13; --panel:#101a29; --panel2:#142236; --line:rgba(126,180,226,.18); --blue:#6db8ff; --green:#36e6b0; --amber:#ffc66b; --radius:20px; }
+    body { background: radial-gradient(ellipse at 15% -15%,rgba(27,108,170,.27),transparent 45%),radial-gradient(ellipse at 90% 5%,rgba(44,200,171,.12),transparent 40%),#070b13; }
+    h1,h2,h3,.brand h1 {font-family:"Space Grotesk",Manrope,sans-serif;letter-spacing:-.035em}
+    .brand-icon {background:linear-gradient(145deg,#16486a,#11645e);border-color:rgba(78,231,190,.3);box-shadow:0 0 30px rgba(49,205,178,.12)}
+    .card,.opinion-tile {transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+    @media (hover:hover){.card:hover,.opinion-tile:hover{transform:translateY(-2px);border-color:rgba(109,184,255,.35);box-shadow:0 14px 40px rgba(0,0,0,.16)}}
+    @keyframes enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    main > * {animation:enter .45s ease both}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
   </style>
 </head>
 
@@ -405,12 +418,12 @@
         <div class="card-head"><div><h3>Four prediction opinions</h3><p>Separate perspectives · Experimental signals, not win probabilities</p></div><span class="tag">ALERTS ONLY</span></div>
         <div class="opinion-grid">
           <div class="opinion-tile"><strong>Existing Lean</strong><div id="opLean" class="opinion-direction">WAIT</div><p id="opLeanReason">Waiting for data</p></div>
-          <div class="opinion-tile"><strong>OpenAI Analysis</strong><div id="opAi" class="opinion-direction">WAIT</div><p id="opAiReason">Waiting for API</p><small id="opAiTime"></small></div>
+          <div class="opinion-tile"><strong>Coinbase Trend</strong><div id="opAi" class="opinion-direction">WAIT</div><p id="opAiReason">Waiting for candles</p><small id="opAiTime"></small></div>
           <div class="opinion-tile"><strong>Momentum Model</strong><div id="opMomentum" class="opinion-direction">WAIT</div><p id="opMomentumReason">Waiting for data</p></div>
           <div class="opinion-tile"><strong>Order Book Model</strong><div id="opBook" class="opinion-direction">WAIT</div><p id="opBookReason">Waiting for data</p></div>
         </div>
         <p id="opAgreement" class="opinion-foot">No opinions yet.</p>
-        <p class="opinion-foot">OpenAI is a separate paid API service; its analysis is not this chat session and may be wrong. Opinions share inputs, so agreement is not independent evidence or a probability.</p>
+        <p class="opinion-foot">Coinbase Trend uses local candle indicators with no API key. All opinions are experimental and may share data; agreement is not a validated win probability.</p>
       </article>
       <article class="card chart-card btc">
         <div class="card-head">
@@ -1222,7 +1235,7 @@
         node.textContent=direction;node.className="opinion-direction "+direction.toLowerCase();
         document.getElementById("op"+id+"Reason").textContent=item?.reason||"No data available";
       }
-      document.getElementById("opAiTime").textContent=opinions.ai?.status==="ready"&&opinions.ai?.generatedAt?"Updated "+new Date(opinions.ai.generatedAt).toLocaleTimeString():"AI status: "+(opinions.ai?.status||"unavailable");
+      document.getElementById("opAiTime").textContent=opinions.ai?.status==="ready"&&opinions.ai?.generatedAt?"Updated "+new Date(opinions.ai.generatedAt).toLocaleTimeString():"Trend status: "+(opinions.ai?.status||"waiting");
       document.getElementById("opAgreement").textContent=`Opinion breakdown: ${up} UP · ${down} DOWN · ${wait} WAIT. No verified win probability.`;
     }
     const previousOpinionRender=render;
