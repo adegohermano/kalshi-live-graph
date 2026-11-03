@@ -36,7 +36,7 @@ async function refreshBTC(){const data=await getJSON(`${COINBASE}/ticker`);const
 async function refreshMarket(){const url=new URL(`${KALSHI}/markets`);url.searchParams.set("series_ticker",SERIES);url.searchParams.set("status","open");url.searchParams.set("limit","200");const data=await getJSON(url);if(!Array.isArray(data.markets))throw Error("Unexpected Kalshi markets response");const now=timeNow();const candidates=data.markets.filter(m=>safeTicker(m.ticker)&&Date.parse(m.close_time)>now&&Date.parse(m.open_time||0)<=now).sort((a,b)=>Date.parse(a.close_time)-Date.parse(b.close_time));const next=candidates[0]||null;if(next?.ticker!==state.marketTicker){state.marketTicker=next?.ticker||null;state.orderbook=null;state.bookUpdatedAt=0;state.yesHistory=[];state.lastAlertKey="";}state.market=next;state.marketUpdatedAt=now;if(next){const mid=first(next,["yes_bid_dollars"]);if(mid!==null)pushHistory(state.yesHistory,mid,now);}}
 async function refreshBook(){const ticker=safeTicker(state.market?.ticker);if(!ticker){state.orderbook=null;return;}const data=await getJSON(`${KALSHI}/markets/${encodeURIComponent(ticker)}/orderbook`);if(state.market?.ticker!==ticker)return;const book=parseBook(data);if(!book)throw Error("Order book missing fixed-point bids");state.orderbook=book;state.bookUpdatedAt=timeNow();const mid=book.yesBid!==null&&book.yesAsk!==null?(book.yesBid+book.yesAsk)/2:null;pushHistory(state.yesHistory,mid,state.bookUpdatedAt);}
 async function refreshCandles(){const end=Math.floor(timeNow()/1000),start=end-3600;const u=new URL(`${COINBASE}/candles`);u.searchParams.set("granularity","60");u.searchParams.set("start",new Date(start*1000).toISOString());u.searchParams.set("end",new Date(end*1000).toISOString());const rows=await getJSON(u);if(!Array.isArray(rows))throw Error("Coinbase candles unavailable");state.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(x=>x!==null)).sort((a,b)=>a.t-b.t);state.candlesUpdatedAt=timeNow();}
-function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:3,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now)};}
+function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:3,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now),directionalLean:calculateDirectionalLean(now)};}
 // All signal scores are heuristic agreement scores, NEVER calibrated probabilities.
 // Calibration requires independent historical outcomes and held-out validation.
 function ema(values,period){
@@ -126,6 +126,42 @@ function calculateSignal(now){
     probabilityStatus:"Not calibrated; insufficient independent holdout validation",
     edge:null,edgeStatus:"Unavailable without a validated probability model and actual fees"};
 }
+// Directional research lean: independent of conservative WAIT, never an order instruction.
+// Scores represent weighted indicator votes, not empirical win probabilities.
+function calculateDirectionalLean(now=Date.now()) {
+  const base=calculateSignal(now), m=state.market;
+  const fresh=!!m && !!state.btcPrice && !!state.btcUpdatedAt && now-state.btcUpdatedAt<=FRESH_BTC &&
+    !!state.marketUpdatedAt && now-state.marketUpdatedAt<=FRESH_MARKET &&
+    Date.parse(m.close_time)>now && base.secondsLeft>0 && base.secondsLeft<=900;
+  if(!fresh)return {direction:null,action:"DATA UNAVAILABLE",strength:null,risk:"Unknown",reasons:["Fresh BTC and open Kalshi market data required"],tradable:false,model:"directional-v1"};
+  const factors=[];
+  const add=(label,value,weight,explanation)=>{if(value===null||!Number.isFinite(value))return;factors.push({label,side:value>0?"UP":value<0?"DOWN":"NEUTRAL",weight,explanation});};
+  if(base.distanceBps!==null)add("Strike position",Math.abs(base.distanceBps)<1?0:base.distanceBps,3,`BTC ${base.distanceBps>=0?"above":"below"} strike by ${Math.abs(base.distanceBps).toFixed(1)} bps`);
+  if(base.momentum60!==null)add("1m momentum",Math.abs(base.momentum60)<1?0:base.momentum60,2,`1m momentum ${base.momentum60.toFixed(1)} bps`);
+  if(base.momentum180!==null)add("3m momentum",Math.abs(base.momentum180)<2?0:base.momentum180,2,`3m momentum ${base.momentum180.toFixed(1)} bps`);
+  if(base.ema9!==null&&base.ema21!==null)add("EMA 9/21",base.ema9-base.ema21,1,`EMA 9 ${base.ema9>=base.ema21?"above":"below"} EMA 21`);
+  if(base.rsi14!==null)add("RSI 14",base.rsi14>55?1:base.rsi14<45?-1:0,1,`RSI ${base.rsi14.toFixed(0)}`);
+  if(base.bookPressure!==null && now-state.bookUpdatedAt<=FRESH_MARKET)add("Order book",Math.abs(base.bookPressure)<0.2?0:base.bookPressure,1,`Order-book imbalance ${(base.bookPressure*100).toFixed(0)}%`);
+  const up=factors.filter(f=>f.side==="UP").reduce((n,f)=>n+f.weight,0);
+  const down=factors.filter(f=>f.side==="DOWN").reduce((n,f)=>n+f.weight,0);
+  const total=factors.reduce((n,f)=>n+f.weight,0);
+  if(!total||(!up&&!down))return {direction:null,action:"NO DIRECTION",strength:0,risk:"High",reasons:["Indicators are neutral or not ready"],factors,tradable:false,model:"directional-v1"};
+  const direction=up>=down?"UP":"DOWN";
+  const strength=Math.round(100*Math.max(up,down)/total);
+  const reasons=factors.filter(f=>f.side===direction).sort((a,b)=>b.weight-a.weight).slice(0,3).map(f=>f.explanation);
+  const risks=[];
+  if(up&&down)risks.push("Conflicting indicators");
+  if(base.secondsLeft<=120)risks.push("Under 2 minutes to expiry");
+  if(base.normalizedDistance!==null&&Math.abs(base.normalizedDistance)<0.35)risks.push("Near strike relative to volatility");
+  if(!state.orderbook||now-state.bookUpdatedAt>FRESH_MARKET)risks.push("Order book unavailable");
+  if(base.spread===null||base.spread>0.05)risks.push("Wide or unavailable spread");
+  const risk=risks.length>=2||strength<55?"High":risks.length||strength<75?"Elevated":"Moderate";
+  // An UP/DOWN lean is always shown when directional evidence exists, even when trading is unwise.
+  return {direction,action:`LEAN ${direction}`,strength,risk,reasons:reasons.length?reasons:["Limited directional evidence"],warnings:risks,
+    factors,upScore:up,downScore:down,tradable:false,model:"directional-v1",
+    note:"Directional research only. Not a trade recommendation, win probability, or verified edge."};
+}
+
 // Three distinct perspectives: legacy multi-factor lean, momentum-only, and book-only.
 // All directions are heuristics; none is a validated probability.
 function independentOpinions(now=Date.now()){

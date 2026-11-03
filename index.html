@@ -383,6 +383,40 @@
     @keyframes enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     main > * {animation:enter .45s ease both}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+    /* GALAXY THEME — preserves existing IDs, chart logic and relay behavior. */
+    :root{--bg:#080518;--panel:rgba(20,13,48,.78);--panel2:rgba(38,23,76,.8);--line:rgba(194,156,255,.20);--blue:#b18aff;--green:#51e7b7;--red:#ff819c;--amber:#ffcf87;--muted:#aaa1c6;--radius:20px}
+    html{scroll-behavior:smooth}
+    body{background:#080518;isolation:isolate}
+    body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:radial-gradient(ellipse at 17% 10%,rgba(126,55,224,.34),transparent 48%),radial-gradient(ellipse at 84% 28%,rgba(91,49,174,.26),transparent 43%),radial-gradient(ellipse at 50% 105%,rgba(76,37,148,.30),transparent 55%),#080518;animation:nebulaDrift 24s ease-in-out infinite alternate}
+    body::after{content:"";position:fixed;inset:-8%;z-index:-1;pointer-events:none;opacity:.55;background-image:radial-gradient(1px 1px at 12% 18%,#fff 98%,transparent),radial-gradient(2px 2px at 61% 32%,#bfa4ff 98%,transparent),radial-gradient(1px 1px at 84% 72%,#fff 98%,transparent),radial-gradient(1px 1px at 36% 85%,#d9caff 98%,transparent),radial-gradient(1px 1px at 92% 12%,#fff 98%,transparent);background-size:240px 220px,360px 320px,280px 300px,420px 340px,310px 390px;transform:translate3d(calc(var(--mouse-x,0px) * .012),calc(var(--mouse-y,0px) * .012),0);animation:starFloat 35s linear infinite}
+    @keyframes nebulaDrift{to{filter:hue-rotate(12deg);transform:scale(1.07)}}
+    @keyframes starFloat{to{background-position:90px 130px,-110px 90px,130px -80px,-80px 110px,120px 80px}}
+    .card,.opinion-tile{backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);background:linear-gradient(140deg,rgba(61,35,112,.32),rgba(15,11,37,.78));box-shadow:0 18px 50px rgba(2,0,17,.28)}
+    .brand-icon{background:linear-gradient(135deg,#8b4dff,#5229a6);border-color:rgba(207,176,255,.5);box-shadow:0 0 26px rgba(158,88,255,.35)}
+    .tag{color:#d7bdff;border-color:rgba(190,145,255,.3);background:rgba(130,74,224,.13)}
+    .card:hover,.opinion-tile:hover{border-color:rgba(191,143,255,.45)}
+    .site-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 22px}
+    .nav-tab{border:1px solid var(--line);background:rgba(34,19,66,.65);color:#d4c6ee;padding:10px 16px;border-radius:11px;cursor:pointer;transition:background .2s,border-color .2s}
+    .nav-tab:hover,.nav-tab[aria-selected=true]{background:rgba(121,66,220,.35);border-color:#a776ff;color:white}
+    .tab-page[hidden]{display:none!important}
+    .signal-duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+    .signal-panel{border:1px solid var(--line);border-radius:16px;background:rgba(18,11,45,.75);padding:18px;min-width:0}
+    .signal-panel .panel-eyebrow{color:#b9a7d8;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:800}
+    .signal-panel .panel-direction{font-family:"Space Grotesk",sans-serif;font-size:clamp(27px,4vw,40px);font-weight:800;letter-spacing:-.05em;margin:9px 0 5px}
+    .panel-direction.up{color:var(--green)}.panel-direction.down{color:var(--red)}.panel-direction.wait{color:var(--amber)}
+    .signal-panel p{font-size:12px;color:var(--muted);margin:7px 0;overflow-wrap:anywhere}
+    .strength-track{height:7px;border-radius:8px;background:rgba(180,140,240,.18);overflow:hidden;margin:12px 0 8px}
+    .strength-fill{height:100%;width:0;background:linear-gradient(90deg,#7845dc,#c79cff);transition:width .45s ease}
+    .signal-detail{font-size:11px;color:#c5b6e4}
+    .support-card{max-width:650px;padding:30px;margin:18px auto}
+    .support-card h2{font-size:28px;margin:0 0 8px}
+    .discord-name{display:inline-block;padding:12px 15px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);font-size:18px;font-weight:800;margin:15px 0}
+    .copy-btn{display:inline-block;border:1px solid #b18aff;background:#6337b7;color:#fff;border-radius:10px;padding:11px 16px;cursor:pointer;font-weight:700}
+    .support-card p{color:var(--muted)}
+    .dashboard-note{font-size:11px;color:var(--muted);margin:0 0 15px}
+    @media(max-width:600px){.signal-duo{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-wrap:wrap}.support-card{padding:20px}}
+    @media(prefers-reduced-motion:reduce){body::before,body::after{animation:none!important;transform:none!important}}
   </style>
 </head>
 
@@ -402,6 +436,11 @@
       </div>
     </header>
 
+    <nav class="site-nav" role="tablist" aria-label="Site navigation">
+      <button class="nav-tab" id="tabDashboard" role="tab" aria-selected="true" aria-controls="pageDashboard" type="button">Dashboard</button>
+      <button class="nav-tab" id="tabSupport" role="tab" aria-selected="false" aria-controls="pageSupport" type="button">Support</button>
+    </nav>
+    <div id="pageDashboard" class="tab-page" role="tabpanel" aria-labelledby="tabDashboard">
     <section class="heading">
       <div>
         <h2>BTC market outlook</h2>
@@ -412,6 +451,14 @@
 
     <div class="banner" id="banner" role="status"></div>
 
+    <section class="card" style="padding:18px 20px;margin-bottom:16px">
+      <div class="card-head"><div><h3>Live directional outlook</h3><p>Two separate models: conservative alert versus directional research lean</p></div><span class="tag">NOT AUTO-TRADING</span></div>
+      <div class="signal-duo">
+        <div class="signal-panel"><div class="panel-eyebrow">Original signal</div><div class="panel-direction wait" id="originalSignal">WAIT</div><p id="originalSignalReason">Waiting for a qualified alert.</p></div>
+        <div class="signal-panel"><div class="panel-eyebrow">Favored direction</div><div class="panel-direction wait" id="directionalAction">ANALYZING</div><p id="directionalReason">Collecting fresh BTC and Kalshi data.</p><div class="strength-track"><div class="strength-fill" id="directionalBar"></div></div><div class="signal-detail" id="directionalStrength">Signal agreement: unavailable</div><p id="directionalRisk">Risk: unknown</p></div>
+      </div>
+      <p class="dashboard-note">A directional lean is not a BUY instruction. Weak, stale or conflicting data may make either side a poor trade. Scores are indicator agreement, not win probabilities.</p>
+    </section>
     <section class="grid">
 
       <article class="card opinion-card" style="grid-column:1/-1;padding:20px">
@@ -560,6 +607,10 @@
     <footer>
       This dashboard is informational, not individualized financial advice. It does not calculate a reliable win probability, account for all contract rules, fees, liquidity, or execution price, and cannot prevent losses. Check the market’s official rules and current quotes before making decisions.
     </footer>
+    </div>
+    <section id="pageSupport" class="tab-page" role="tabpanel" aria-labelledby="tabSupport" hidden>
+      <article class="card support-card"><span class="tag">HELP CENTER</span><h2>Support</h2><p>Questions about the dashboard or need assistance? Reach out on Discord.</p><div class="discord-name">@blacksamurai420</div><div><button class="copy-btn" id="copyDiscord" type="button">Copy Discord username</button></div><p id="copyStatus" role="status" aria-live="polite"></p><p>Discord username only. No automated support or direct messaging is connected to this site.</p></article>
+    </section>
   </main>
 
   <script>
@@ -1240,6 +1291,41 @@
     }
     const previousOpinionRender=render;
     render=function(snapshot){previousOpinionRender(snapshot);renderOpinions(snapshot);};
+
+    function updateDirectional(snapshot){
+      const original=snapshot?.signal||{};
+      const dir=original.direction||"WAIT";
+      $("originalSignal").textContent=dir;
+      $("originalSignal").className="panel-direction "+(dir==="UP"?"up":dir==="DOWN"?"down":"wait");
+      $("originalSignalReason").textContent=original.reasons?.[0]||(dir==="WAIT"?"No qualified alert":"Qualified conservative signal");
+      const lean=snapshot?.directionalLean||{};
+      const usable=snapshot?.marketUsable===true&&snapshot?.btcStale===false&&snapshot?.marketStale===false;
+      const direction=usable&&["UP","DOWN"].includes(lean.direction)?lean.direction:null;
+      $("directionalAction").textContent=direction||"NO LIVE LEAN";
+      $("directionalAction").className="panel-direction "+(direction?direction.toLowerCase():"wait");
+      $("directionalReason").textContent=direction?(lean.reasons||[]).join(" · "):(lean.reasons?.[0]||"Waiting for a valid directional signal");
+      const strength=direction&&Number.isFinite(lean.strength)?Math.max(0,Math.min(100,lean.strength)):0;
+      $("directionalBar").style.width=strength+"%";
+      $("directionalStrength").textContent=direction?"Indicator agreement: "+strength+"/100 (not win probability)":"Indicator agreement: unavailable";
+      $("directionalRisk").textContent="Risk: "+(direction?(lean.risk||"Unknown"):"Data unavailable")+(direction&&lean.warnings?.length?" · "+lean.warnings.join(" · "):"");
+    }
+    const renderBeforeGalaxy=render;
+    render=function(snapshot){renderBeforeGalaxy(snapshot);updateDirectional(snapshot);};
+    function selectTab(name){
+      const support=name==="support";
+      $("pageSupport").hidden=!support;$("pageDashboard").hidden=support;
+      $("tabSupport").setAttribute("aria-selected",String(support));$("tabDashboard").setAttribute("aria-selected",String(!support));
+      if(!support)requestAnimationFrame(drawAllCharts);
+    }
+    $("tabDashboard").addEventListener("click",()=>selectTab("dashboard"));
+    $("tabSupport").addEventListener("click",()=>selectTab("support"));
+    $("copyDiscord").addEventListener("click",async()=>{
+      try{await navigator.clipboard.writeText("@blacksamurai420");$("copyStatus").textContent="Discord username copied.";}
+      catch(_){$("copyStatus").textContent="Copy this username: @blacksamurai420";}
+    });
+    if(window.matchMedia("(prefers-reduced-motion: no-preference)").matches){
+      window.addEventListener("pointermove",e=>{document.body.style.setProperty("--mouse-x",e.clientX-window.innerWidth/2+"px");document.body.style.setProperty("--mouse-y",e.clientY-window.innerHeight/2+"px");},{passive:true});
+    }
     poll();
   </script>
 </body>
