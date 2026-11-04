@@ -35,8 +35,8 @@ function safeTicker(t){return /^[A-Za-z0-9_-]{3,120}$/.test(t||"")?t:null;}
 async function refreshBTC(){const data=await getJSON(`${COINBASE}/ticker`);const n=numeric(data?.price);if(n===null||n<=0)throw Error("Invalid Coinbase price");state.btcPrice=n;state.btcUpdatedAt=timeNow();pushHistory(state.btcHistory,n,state.btcUpdatedAt);}
 async function refreshMarket(){const url=new URL(`${KALSHI}/markets`);url.searchParams.set("series_ticker",SERIES);url.searchParams.set("status","open");url.searchParams.set("limit","200");const data=await getJSON(url);if(!Array.isArray(data.markets))throw Error("Unexpected Kalshi markets response");const now=timeNow();const candidates=data.markets.filter(m=>safeTicker(m.ticker)&&Date.parse(m.close_time)>now&&Date.parse(m.open_time||0)<=now).sort((a,b)=>Date.parse(a.close_time)-Date.parse(b.close_time));const next=candidates[0]||null;if(next?.ticker!==state.marketTicker){state.marketTicker=next?.ticker||null;state.orderbook=null;state.bookUpdatedAt=0;state.yesHistory=[];state.lastAlertKey="";}state.market=next;state.marketUpdatedAt=now;if(next){const mid=first(next,["yes_bid_dollars"]);if(mid!==null)pushHistory(state.yesHistory,mid,now);}}
 async function refreshBook(){const ticker=safeTicker(state.market?.ticker);if(!ticker){state.orderbook=null;return;}const data=await getJSON(`${KALSHI}/markets/${encodeURIComponent(ticker)}/orderbook`);if(state.market?.ticker!==ticker)return;const book=parseBook(data);if(!book)throw Error("Order book missing fixed-point bids");state.orderbook=book;state.bookUpdatedAt=timeNow();const mid=book.yesBid!==null&&book.yesAsk!==null?(book.yesBid+book.yesAsk)/2:null;pushHistory(state.yesHistory,mid,state.bookUpdatedAt);}
-async function refreshCandles(){const end=Math.floor(timeNow()/1000),start=end-3600;const u=new URL(`${COINBASE}/candles`);u.searchParams.set("granularity","60");u.searchParams.set("start",new Date(start*1000).toISOString());u.searchParams.set("end",new Date(end*1000).toISOString());const rows=await getJSON(u);if(!Array.isArray(rows))throw Error("Coinbase candles unavailable");state.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(x=>x!==null)).sort((a,b)=>a.t-b.t);state.candlesUpdatedAt=timeNow();}
-function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:3,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-60),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now),directionalLean:calculateDirectionalLean(now)};}
+async function refreshCandles(){const end=Math.floor(timeNow()/1000),start=end-17400;const u=new URL(`${COINBASE}/candles`);u.searchParams.set("granularity","60");u.searchParams.set("start",new Date(start*1000).toISOString());u.searchParams.set("end",new Date(end*1000).toISOString());const rows=await getJSON(u);if(!Array.isArray(rows))throw Error("Coinbase candles unavailable");state.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(x=>x!==null)).sort((a,b)=>a.t-b.t);state.candlesUpdatedAt=timeNow();}
+function snapshot(){const now=timeNow(),m=state.market,b=state.orderbook;const marketAgeMs=state.marketUpdatedAt?now-state.marketUpdatedAt:null,btcAgeMs=state.btcUpdatedAt?now-state.btcUpdatedAt:null,bookAgeMs=state.bookUpdatedAt?now-state.bookUpdatedAt:null;const marketStale=marketAgeMs===null||marketAgeMs>FRESH_MARKET||!m;const btcStale=btcAgeMs===null||btcAgeMs>FRESH_BTC;const bookStale=bookAgeMs===null||bookAgeMs>FRESH_MARKET;return {snapshotVersion:3,timestamp:now,seriesTicker:SERIES,market:m,btcPrice:state.btcPrice,marketUpdatedAt:state.marketUpdatedAt||null,btcUpdatedAt:state.btcUpdatedAt||null,marketAgeMs,btcAgeMs,marketStale,btcStale,bookStale,bookAgeMs,marketExpired:!m||Date.parse(m.close_time)<=now,marketUsable:!marketStale&&!btcStale&&!!m&&Date.parse(m.close_time)>now,marketError:state.errors.market||null,btcError:state.errors.btc||null,bookError:state.errors.book||null,orderbook:b,btcHistory:state.btcHistory.slice(-750),yesHistory:state.yesHistory.slice(-750),candles:state.candles.slice(-300),candlesUpdatedAt:state.candlesUpdatedAt||null,signal:calculateSignal(now),directionalLean:calculateDirectionalLean(now)};}
 // All signal scores are heuristic agreement scores, NEVER calibrated probabilities.
 // Calibration requires independent historical outcomes and held-out validation.
 function ema(values,period){
@@ -247,7 +247,7 @@ async function extraRefresh(symbol,kind){
       if(b.yesBid!==null&&b.yesAsk!==null)pushHistory(s.yesHistory,(b.yesBid+b.yesAsk)/2,s.bookAt);
     }else if(kind==='candles'){
       const end=Math.floor(Date.now()/1000),u=new URL(`https://api.exchange.coinbase.com/products/${cfg.product}/candles`);
-      u.searchParams.set('granularity','60');u.searchParams.set('start',new Date((end-3600)*1000).toISOString());u.searchParams.set('end',new Date(end*1000).toISOString());
+      u.searchParams.set('granularity','60');u.searchParams.set('start',new Date((end-17400)*1000).toISOString());u.searchParams.set('end',new Date(end*1000).toISOString());
       const rows=await getJSON(u);if(!Array.isArray(rows))throw Error('Candles unavailable');
       s.candles=rows.filter(r=>Array.isArray(r)&&r.length>=6).map(r=>({t:r[0]*1000,low:numeric(r[1]),high:numeric(r[2]),open:numeric(r[3]),close:numeric(r[4]),volume:numeric(r[5])})).filter(r=>r.t&&[r.low,r.high,r.open,r.close].every(Number.isFinite)).sort((a,b)=>a.t-b.t);s.candlesAt=Date.now();
     }
@@ -288,7 +288,7 @@ function extraSnapshot(symbol){
   const momentumDirection=momentum60!==null&&momentum180!==null?momentum60>0&&momentum180>0?'UP':momentum60<0&&momentum180<0?'DOWN':'WAIT':'WAIT';
   const bookDirection=pressure===null?'WAIT':pressure>.3?'UP':pressure<-.3?'DOWN':'WAIT';
   const opinions={lean:{direction:signal.direction,reason:reasons[0]||'Qualified conservative signal'},momentum:{direction:momentumDirection,reason:'60s and 180s price momentum'},orderbook:{direction:bookDirection,reason:pressure===null?'Book unavailable':'Order-book pressure '+(pressure*100).toFixed(0)+'%'},ai:{direction:ema9!==null&&ema21!==null&&rsi14!==null?ema9>ema21&&rsi14>55?'UP':ema9<ema21&&rsi14<45?'DOWN':'WAIT':'WAIT',reason:'EMA 9/21 and RSI 14',status:closes.length>=21?'ready':'waiting',generatedAt:s.candlesAt}};
-  return {snapshotVersion:4,symbol,seriesTicker:EXTRA_MARKETS[symbol].series,timestamp:now,market:m,btcPrice:s.price,btcUpdatedAt:s.priceAt||null,marketUpdatedAt:s.marketAt||null,btcAgeMs:priceAge,marketAgeMs:marketAge,bookAgeMs:bookAge,btcStale,marketStale,bookStale,marketUsable,marketExpired:!m||Date.parse(m.close_time)<=now,btcError:s.errors.price||null,marketError:s.errors.market||null,bookError:s.errors.book||null,orderbook:b,btcHistory:s.history.slice(-750),yesHistory:s.yesHistory.slice(-750),candles:s.candles.slice(-60),candlesUpdatedAt:s.candlesAt||null,signal,directionalLean:lean,opinions};
+  return {snapshotVersion:4,symbol,seriesTicker:EXTRA_MARKETS[symbol].series,timestamp:now,market:m,btcPrice:s.price,btcUpdatedAt:s.priceAt||null,marketUpdatedAt:s.marketAt||null,btcAgeMs:priceAge,marketAgeMs:marketAge,bookAgeMs:bookAge,btcStale,marketStale,bookStale,marketUsable,marketExpired:!m||Date.parse(m.close_time)<=now,btcError:s.errors.price||null,marketError:s.errors.market||null,bookError:s.errors.book||null,orderbook:b,btcHistory:s.history.slice(-750),yesHistory:s.yesHistory.slice(-750),candles:s.candles.slice(-300),candlesUpdatedAt:s.candlesAt||null,signal,directionalLean:lean,opinions};
 }
 // Read-only settlement lookup for locally simulated positions; no account or trading API.
 const settlementCache=new Map();
@@ -365,6 +365,100 @@ app.get('/api/trend-results',(_req,res)=>{
   res.json({rows,stats:{total:rows.length,settled:settled.length,wins,losses:settled.length-wins,pending:rows.length-settled.length,winRate:settled.length?wins/settled.length:null},persistent:!!process.env.DATA_DIR});
 });
 schedule('trend_predictions',15000,captureTrendPredictions);
+
+// Galaxy Accuracy Lab v1: read-only, historical-only feature engineering.
+// Coinbase minute candles are not equivalent to Kalshi settlement observations.
+// The model is an experimental baseline, NOT an independently validated forecast.
+function normCdf(x){
+  const z=Math.abs(x)/Math.SQRT2,t=1/(1+.3275911*z);
+  const erf=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-z*z);
+  return .5*(1+(x<0?-erf:erf));
+}
+function accuracyLab(symbol){
+  const now=Date.now(),snap=symbol==='BTC'?{...snapshot(),opinions:independentOpinions()}:extraSnapshot(symbol);
+  const raw=symbol==='BTC'?state.candles:extraStates[symbol].candles;
+  // Ignore currently forming one-minute bar; never use a future candle as an input.
+  const bars=raw.filter(c=>Number.isFinite(c.close)&&Number.isFinite(c.open)&&c.close>0&&c.t+60000<=now).sort((a,b)=>a.t-b.t);
+  const price=snap.btcPrice,strike=strikeOf(snap.market),remaining=snap.market?(Date.parse(snap.market.close_time)-now)/1000:null;
+  const ret=(a,b)=>a>0&&b>0?Math.log(a/b):null;
+  function features(i){
+    if(i<20)return null;
+    const last=bars[i],one=bars[i-1],five=bars[i-5],fifteen=bars[i-15];
+    if(!last||!one||!five||!fifteen)return null;
+    if(last.t-five.t>6*60000||last.t-fifteen.t>17*60000)return null;
+    const window=bars.slice(i-19,i+1),rs=[];
+    for(let j=1;j<window.length;j++){const v=ret(window[j].close,window[j-1].close);if(v!==null)rs.push(v);}
+    if(rs.length<18)return null;
+    const vol=Math.sqrt(rs.reduce((a,b)=>a+b*b,0)/rs.length);
+    const r1=ret(last.close,one.close),r5=ret(last.close,five.close),r15=ret(last.close,fifteen.close);
+    return {r1,r5,r15,vol,regime:vol<.0004?'CALM':vol<.0012?'NORMAL':'VOLATILE',trend:r1>0&&r5>0&&r15>0?'UP':r1<0&&r5<0&&r15<0?'DOWN':'MIXED'};
+  }
+  const current=features(bars.length-1);
+  // Rolling-origin historical backtest: label from 15 minutes after the observation.
+  // The most recent 15 minutes cannot be used as labeled training data.
+  const labeled=[];
+  for(let i=20;i<bars.length-15;i++){
+    const f=features(i),future=bars[i+15];
+    if(!f||!future||future.t-bars[i].t>17*60000)continue;
+    const direction=f.r5+f.r15/2>0?'UP':'DOWN';
+    labeled.push({i,f,direction,won:(future.close>bars[i].close)===(direction==='UP')});
+  }
+  const split=Math.floor(labeled.length*.7),train=labeled.slice(0,split),test=labeled.slice(split);
+  const testWins=test.filter(x=>x.won).length;
+  // Out-of-sample model accuracy is for a 15-minute SPOT DIRECTION proxy,
+  // not for the settlement outcome of an actual Kalshi strike contract.
+  const baseline=test.length?testWins/test.length:null;
+  let neighbors=[];
+  if(current){neighbors=train.map(x=>{
+    const f=x.f,scale=Math.max(current.vol,.00015);
+    const dist=Math.abs(f.r1-current.r1)/scale+Math.abs(f.r5-current.r5)/(scale*3)+Math.abs(f.r15-current.r15)/(scale*5)+Math.abs(Math.log(Math.max(f.vol,.00001)/Math.max(current.vol,.00001)));
+    return {...x,distance:dist};
+  }).sort((a,b)=>a.distance-b.distance).slice(0,25);}
+  const neighborWin=neighbors.length?neighbors.filter(x=>x.won).length/neighbors.length:null;
+  const direction=snap.directionalLean?.direction;
+  const trend=snap.opinions?.ai?.direction;
+  const pressure=snap.signal?.bookPressure;
+  const ask=direction==='UP'?snap.orderbook?.yesAsk:direction==='DOWN'?snap.orderbook?.noAsk:null;
+  const bid=direction==='UP'?snap.orderbook?.yesBid:direction==='DOWN'?snap.orderbook?.noBid:null;
+  const spread=Number.isFinite(ask)&&Number.isFinite(bid)?ask-bid:null;
+  const levels=direction==='UP'?snap.orderbook?.yes:direction==='DOWN'?snap.orderbook?.no:null;
+  const depth=Array.isArray(levels)?levels.slice(0,5).reduce((sum,l)=>sum+(Number(l.size)||0),0):null;
+  const sigma=current?.vol,normalized=strike>0&&price>0&&sigma>0&&remaining>0?Math.log(price/strike)/(sigma*Math.sqrt(remaining/60)):null;
+  const upProb=normalized===null?null:normCdf(normalized);
+  const rawProb=direction==='UP'?upProb:direction==='DOWN'&&upProb!==null?1-upProb:null;
+  // Uncalibrated volatility-model estimate, NOT a demonstrated win probability.
+  const marketImplied=Number.isFinite(ask)?ask:null;
+  const illustrativeFee=.02;
+  const rawEdge=rawProb!==null&&marketImplied!==null?rawProb-marketImplied-illustrativeFee:null;
+  const issues=[];
+  if(!snap.marketUsable||snap.bookStale||snap.btcStale)issues.push('Market, spot, or book data unavailable/stale');
+  if(!current||bars.length<45)issues.push('Insufficient complete minute candles');
+  if(!['UP','DOWN'].includes(direction))issues.push('No clear favored direction');
+  if(trend!==direction||current?.trend!==direction)issues.push('1m/5m/15m trends and model do not agree');
+  if(!Number.isFinite(remaining)||remaining<120||remaining>900)issues.push('Outside 2–15 minute expiry window');
+  if(!Number.isFinite(spread)||spread>.05||spread<0)issues.push('Spread unavailable or wider than 5¢');
+  if(!Number.isFinite(depth)||depth<=0)issues.push('Insufficient visible book depth');
+  if(test.length<50)issues.push('Too few out-of-sample observations for validation');
+  if(neighbors.length<20)issues.push('Insufficient comparable historical patterns');
+  if(rawEdge===null||rawEdge<.08)issues.push('No substantial modeled edge after illustrative fees');
+  // No calibrated settlement probability yet: do not turn a proxy into a PICK.
+  issues.push('Kalshi-settlement probability not independently calibrated');
+  return {symbol,version:1,updatedAt:now,recommendation:'WAIT',watch:direction||'WAIT',issues,
+    multiTimeframe:current?{oneMinute:current.r1>0?'UP':'DOWN',fiveMinute:current.r5>0?'UP':'DOWN',fifteenMinute:current.r15>0?'UP':'DOWN',aligned:current.trend}:null,
+    regime:current?.regime||'UNKNOWN',volatilityPerMinute:sigma??null,
+    expiry:{secondsLeft:remaining,spot:price,strike,modeledUp:upProb,modeledDirection:rawProb,calibrated:false},
+    orderbook:{spread,topFiveDepth:depth,pressure:pressure??null,ask,illustrativeFee,rawModelEdge:rawEdge},
+    patterns:{matches:neighbors.length,spotProxyHitRate:neighborWin},
+    backtest:{trainingSamples:train.length,testSamples:test.length,testWins,spotProxyHitRate:baseline,method:'Chronological 70/30 holdout; 15-minute Coinbase spot-direction proxy; no Kalshi settlement labels',calibrated:false},
+    guardrails:{stale:!snap.marketUsable||snap.bookStale,conflict:trend!==direction||current?.trend!==direction,thinBook:!depth,wideSpread:spread===null||spread>.05},
+    disclaimer:'Experimental research metrics only. Spot-direction labels are not Kalshi contract settlement. No calibrated win probability or validated positive expected value.'};
+}
+app.get('/api/accuracy-lab/:symbol',(req,res)=>{
+  const symbol=String(req.params.symbol).toUpperCase();
+  if(!['BTC','ETH','SOL'].includes(symbol))return res.status(404).json({error:'Unsupported symbol'});
+  res.set('Cache-Control','no-store');res.json(accuracyLab(symbol));
+});
+
 app.use((_req,res)=>res.status(404).json({error:"Not found"}));
 loadPredictions();
 schedule("btc",BTC_INTERVAL,refreshBTC);

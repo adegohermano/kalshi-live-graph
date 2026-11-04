@@ -429,6 +429,33 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
   @media(max-width:600px){.live-datetime{order:-1;width:100%;margin:0 0 6px;text-align:right}.connection{max-width:100%}}
 
 .selection-card{padding:20px;margin-bottom:16px;border:1px solid rgba(160,120,255,.35);background:linear-gradient(120deg,rgba(100,60,180,.16),rgba(10,15,38,.6))}.selection-layout{display:grid;grid-template-columns:1fr 1.3fr;gap:22px;margin-top:15px;align-items:center}.selection-layout small{color:#b7a8e8;letter-spacing:.11em;font-size:11px}.selection-facts{line-height:1.85;font-size:13px;color:#d8d7ed}.selection-card .panel-direction{margin:8px 0}@media(max-width:650px){.selection-layout{grid-template-columns:1fr}}
+
+/* Galaxy Pro performance and presentation refresh */
+:root{color-scheme:dark}html{scroll-behavior:smooth}body{background-attachment:fixed}
+.card,.pro-panel,.scan-tile,.category-tab,.coin-nav button{transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease,background-color .22s ease}
+.card{contain:layout style;border-color:rgba(169,140,255,.19);box-shadow:0 8px 30px rgba(5,6,30,.18)}
+.card:hover{border-color:rgba(170,136,255,.37)}
+.category-nav{position:sticky;top:8px;z-index:15;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:rgba(15,12,39,.86);border-radius:16px;padding:8px;box-shadow:0 12px 35px rgba(5,4,25,.35)}
+.category-tab{font-weight:650;letter-spacing:.01em}
+.category-tab[aria-selected=true]{box-shadow:0 4px 20px rgba(132,87,255,.25)}
+.category-page[hidden]{display:none!important}
+.accuracy-lab{padding:clamp(18px,3vw,30px);background:radial-gradient(ellipse at 100% 0%,rgba(128,76,242,.19),transparent 60%),linear-gradient(135deg,rgba(23,17,58,.96),rgba(9,13,35,.95))}
+.lab-chip{font-size:10px;color:#cbb7ff;border:1px solid #7453ad;border-radius:999px;padding:4px 8px;vertical-align:middle;letter-spacing:.12em}
+.lab-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid rgba(160,140,255,.16)}
+.lab-hero small,.lab-tile small{display:block;color:#b4a6d9;font-size:11px;letter-spacing:.08em}
+.lab-hero strong{display:block;font-size:clamp(27px,4vw,43px);letter-spacing:-.04em;line-height:1.3;background:linear-gradient(95deg,#eee9ff,#ab95ff);color:transparent;background-clip:text;-webkit-background-clip:text}
+.lab-hero p{max-width:540px;color:#bcb5d5;font-size:13px;line-height:1.6}
+.lab-orb{width:122px;height:122px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:radial-gradient(circle at 35% 30%,#7151c9,#2c1c61 65%,#18132f);border:1px solid #8f6ae3;box-shadow:0 0 35px rgba(137,95,255,.23)}
+.lab-orb span{font-weight:800;font-size:15px}.lab-orb small{font-size:9px;letter-spacing:.06em;color:#d1c7eb}
+.lab-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}
+.lab-tile{min-width:0;padding:18px;border-radius:15px;border:1px solid rgba(169,142,255,.18);background:rgba(20,20,52,.7)}
+.lab-tile strong{display:block;margin:10px 0;font-size:clamp(18px,2vw,25px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.lab-tile span{font-size:11px;color:#a9a5c2;line-height:1.5}
+.lab-guard{padding:17px 20px;background:rgba(81,58,130,.16);border-left:3px solid #ab87ff;border-radius:10px}
+.lab-guard p{color:#c7bfdc;font-size:13px;line-height:1.6;margin:7px 0 0}
+@media(max-width:800px){.lab-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lab-orb{width:90px;height:90px}}
+@media(max-width:500px){.lab-grid{grid-template-columns:1fr}.lab-hero{align-items:flex-start}.lab-orb{width:74px;height:74px}.lab-orb span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
 
@@ -482,6 +509,22 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       </div>
       <p class="dashboard-note">A directional lean is not a BUY instruction. Weak, stale or conflicting data may make either side a poor trade. Scores are indicator agreement, not win probabilities.</p>
     </section>
+
+    <section id="accuracyLab" class="card accuracy-lab" aria-label="Accuracy research lab">
+      <div class="card-head"><div><h3>Accuracy Lab <span class="lab-chip">RESEARCH</span></h3><p>Historical patterns · timeframe confirmation · expiry model · book depth · validation</p></div><span class="tag">NO AUTO TRADING</span></div>
+      <div class="lab-hero"><div><small>VALIDATED PICK STATUS</small><strong id="labPick">WAIT / LOADING</strong><p id="labReason">Waiting for independent market evidence…</p></div><div class="lab-orb"><span id="labRegime">—</span><small>MARKET REGIME</small></div></div>
+      <div class="lab-grid">
+        <div class="lab-tile"><small>1m / 5m / 15m agreement</small><strong id="labTrend">—</strong><span>Multiple timeframe check</span></div>
+        <div class="lab-tile"><small>Historical nearest patterns</small><strong id="labPatterns">—</strong><span id="labPatternsSub">No data yet</span></div>
+        <div class="lab-tile"><small>Out-of-sample spot proxy</small><strong id="labBacktest">—</strong><span id="labBacktestSub">Chronological holdout</span></div>
+        <div class="lab-tile"><small>Expiry model (uncalibrated)</small><strong id="labExpiry">—</strong><span id="labExpirySub">Model estimate only</span></div>
+        <div class="lab-tile"><small>Liquidity & spread</small><strong id="labBook">—</strong><span id="labBookSub">Executable quote check</span></div>
+        <div class="lab-tile"><small>Estimated model edge</small><strong id="labEdge">—</strong><span>Illustrative fee, not an actual quote</span></div>
+      </div>
+      <div class="lab-guard"><strong>Why the engine may say WAIT</strong><p id="labGuards">Collecting checks…</p></div>
+      <p class="dashboard-note">Experimental spot-direction research is not validated Kalshi settlement accuracy. Never treat an uncalibrated estimate as a guaranteed win probability.</p>
+    </section>
+
     <section class="card selection-card" aria-live="polite">
       <div class="card-head"><div><h3>Galaxy decision engine · Graph + accuracy</h3><p>Evidence-gated selection for the active coin; not a guarantee or automatic trade</p></div><span class="tag">MANUAL ONLY</span></div>
       <div class="selection-layout"><div><small>WHAT TO PICK</small><div class="panel-direction wait" id="selectionPick">CHECKING…</div><p id="selectionWatch">Waiting for graph and settlement history</p></div><div class="selection-facts" id="selectionFacts">Collecting independent evidence…</div></div>
@@ -1186,10 +1229,11 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       });
 
       updateCountdown(market);
-      drawAllCharts();
+      if (!document.hidden && document.querySelector('[data-category="analysis"]')?.getAttribute('aria-selected')==='true') drawAllCharts();
     }
 
     async function poll() {
+      if (document.hidden) {clearTimeout(pollTimer);pollTimer=setTimeout(poll,Math.max(POLL_MS,8000));return;}
       if (polling) return;
       polling = true;
 
@@ -1235,10 +1279,10 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       }
     }
 
-    window.addEventListener("resize", drawAllCharts);
+    let resizePending=false;window.addEventListener("resize",()=>{if(resizePending)return;resizePending=true;requestAnimationFrame(()=>{resizePending=false;if(!document.hidden&&document.querySelector('[data-category="analysis"]')?.getAttribute('aria-selected')==='true')drawAllCharts();});});
     setInterval(() => {
-      if (latestSnapshot) updateCountdown(latestSnapshot.market || {});
-    }, 250);
+      if (!document.hidden && latestSnapshot) updateCountdown(latestSnapshot.market || {});
+    }, 1000);
 
 
     // v2 enhancements: real exchange OHLC candles, order book, server-scored signals,
@@ -1508,6 +1552,36 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
 
 
 
+
+    // Accuracy Lab: fetch only while visible, cancel stale coin responses.
+    let labRequest=0,labLastAt=0;
+    async function refreshAccuracyLab(force=false){
+      if(document.hidden||!document.getElementById('accuracyLab')||(!force&&Date.now()-labLastAt<15000))return;
+      const symbol=activeCoin,seq=++labRequest;labLastAt=Date.now();
+      try{
+        const r=await fetch(`${API_BASE}/api/accuracy-lab/${symbol}`,{cache:'no-store'});
+        if(!r.ok)throw Error('Accuracy Lab backend unavailable');
+        const d=await r.json();if(seq!==labRequest||symbol!==activeCoin)return;
+        const pct=x=>Number.isFinite(x)?(x*100).toFixed(1)+'%':'—';
+        $('labPick').textContent=d.recommendation==='WAIT'?'WAIT / NO VERIFIED EDGE':d.recommendation;
+        $('labRegime').textContent=d.regime||'UNKNOWN';
+        $('labReason').textContent=`${symbol} · favored ${d.watch} · experimental model, not a verified Kalshi probability`;
+        const tf=d.multiTimeframe;$('labTrend').textContent=tf?`${tf.oneMinute} / ${tf.fiveMinute} / ${tf.fifteenMinute}`:'—';
+        $('labPatterns').textContent=d.patterns?.matches?`${d.patterns.matches} matches`:'—';
+        $('labPatternsSub').textContent='Historical spot proxy hit rate: '+pct(d.patterns?.spotProxyHitRate);
+        $('labBacktest').textContent=pct(d.backtest?.spotProxyHitRate);
+        $('labBacktestSub').textContent=`${d.backtest?.testSamples||0} held-out spot observations (not Kalshi W/L)`;
+        $('labExpiry').textContent=pct(d.expiry?.modeledDirection);
+        $('labExpirySub').textContent='Uncalibrated volatility estimate';
+        $('labBook').textContent=Number.isFinite(d.orderbook?.spread)?(d.orderbook.spread*100).toFixed(1)+'¢ spread':'—';
+        $('labBookSub').textContent=`Top-five visible bid depth: ${Number.isFinite(d.orderbook?.topFiveDepth)?d.orderbook.topFiveDepth.toFixed(1):'—'}`;
+        $('labEdge').textContent=Number.isFinite(d.orderbook?.rawModelEdge)?(d.orderbook.rawModelEdge*100).toFixed(1)+' pp':'—';
+        $('labGuards').textContent=(d.issues||[]).join(' · ')||'No flags';
+      }catch(e){if(seq!==labRequest)return;$('labPick').textContent='FEED UNAVAILABLE';$('labGuards').textContent=e.message;}
+    }
+    setInterval(()=>{if(!document.hidden)refreshAccuracyLab()},15000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAccuracyLab(true)});
+
     // Split formerly stacked dashboard categories into dedicated pages.
     // Existing element IDs, data fetches, and event handlers remain unchanged.
     (function setupCategoryPages(){
@@ -1515,7 +1589,7 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       const coinNav=dashboard.querySelector('.coin-nav');
       if(!coinNav)return;
       const nav=document.createElement('nav');nav.className='category-nav';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Dashboard categories');
-      const definitions=[['overview','Overview & Scanner'],['analysis','Live Analysis'],['paper','Paper Trading'],['history','Accuracy & W/L'],['settings','Settings & Health']];
+      const definitions=[['overview','Overview & Scanner'],['analysis','Live Analysis'],['paper','Paper Trading'],['history','Accuracy & W/L'],['lab','Accuracy Lab'],['settings','Settings & Health']];
       const pages={};
       for(const [key,label] of definitions){
         const btn=document.createElement('button');btn.type='button';btn.className='category-tab';btn.textContent=label;btn.dataset.category=key;btn.setAttribute('role','tab');btn.setAttribute('aria-controls','category-'+key);btn.setAttribute('aria-selected',String(key==='analysis'));nav.append(btn);
@@ -1550,6 +1624,7 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
         if(predictionCard)move('history',predictionCard);
         move('analysis',mainGrid);
       }
+      const lab=document.getElementById('accuracyLab');move('lab',lab);
       const footer=dashboard.querySelector('footer');move('settings',footer);
       const statusPanel=document.createElement('section');statusPanel.className='card pro-panel';
       statusPanel.innerHTML='<h3>Feed diagnostics</h3><p class="pro-muted">Backend status and quote quality are checked continuously. Unavailable or stale feeds should never be treated as live picks.</p><div class="pro-grid"><div class="pro-box"><small>Backend</small><strong id="settingsHealthMirror">Checking…</strong></div><div class="pro-box"><small>Data quality</small><strong id="settingsDataMirror">Waiting…</strong></div></div>';
@@ -1557,6 +1632,7 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
       function choose(key){
         for(const [name] of definitions){pages[name].hidden=name!==key;nav.querySelector('[data-category="'+name+'"]').setAttribute('aria-selected',String(name===key));}
         try{sessionStorage.setItem('galaxyCategory',key)}catch(_){}
+        if(key==='lab')refreshAccuracyLab(true);
         if(key==='analysis')requestAnimationFrame(()=>{if(typeof drawAllCharts==='function')drawAllCharts()});
         if(key==='settings'){
           document.getElementById('settingsHealthMirror').textContent=document.getElementById('proHealth')?.textContent||'Unavailable';
@@ -1569,6 +1645,7 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
     })();
 
     poll();
+    refreshAccuracyLab(true);
   </script>
 </body>
 </html>
