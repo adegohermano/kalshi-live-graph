@@ -324,6 +324,39 @@ function captureTrendPredictions(){
     savePredictions();
   }
 }
+// Evidence-gated selection: historical hit rate is descriptive, not a calibrated probability.
+function selectionFor(symbol){
+  const snap=symbol==='BTC'?{...snapshot(),opinions:independentOpinions()}:extraSnapshot(symbol);
+  const history=state.predictions.filter(p=>p.model==='coinbase-trend-tracker-v1'&&p.symbol===symbol&&p.status==='settled');
+  const dir=snap.directionalLean?.direction;
+  const graph=snap.opinions?.ai?.direction;
+  const prices=(snap.candles||[]).map(c=>Number(c.close)).filter(Number.isFinite);
+  const latest=prices.at(-1), earlier=prices.length>=6?prices.at(-6):null;
+  const graphMoveBps=latest>0&&earlier>0?(latest/earlier-1)*10000:null;
+  const graphDirection=graphMoveBps===null||Math.abs(graphMoveBps)<2?'WAIT':graphMoveBps>0?'UP':'DOWN';
+  const selected=['UP','DOWN'].includes(dir)?dir:null;
+  const matching=history.filter(p=>p.direction===selected);
+  const wins=matching.filter(p=>p.correct===true).length,n=matching.length;
+  const rate=n?wins/n:null;
+  // Wilson 95% lower confidence bound: reduces small-sample overconfidence.
+  const z=1.96,lower=n?(rate+z*z/(2*n)-z*Math.sqrt((rate*(1-rate)+z*z/(4*n))/n))/(1+z*z/n):null;
+  const ask=selected==='UP'?snap.orderbook?.yesAsk:selected==='DOWN'?snap.orderbook?.noAsk:null;
+  const fee=0.02; // Conservative illustrative fee, not a verified Kalshi fee quote.
+  const breakEven=Number.isFinite(ask)?ask+fee:null;
+  const secondsLeft=(Date.parse(snap.market?.close_time)-Date.now())/1000;
+  const issues=[];
+  if(!snap.marketUsable||snap.bookStale)issues.push('Market or orderbook feed is stale');
+  if(!selected)issues.push('No favored direction');
+  if(graph!==selected||graphDirection!==selected)issues.push('Graph, trend model and favored direction do not agree');
+  if(!Number.isFinite(secondsLeft)||secondsLeft<120)issues.push('Less than two minutes remain');
+  if(!Number.isFinite(ask)||ask<=0||ask>=1)issues.push('No executable contract ask');
+  if(n<30)issues.push('Fewer than 30 settled matching predictions');
+  if(breakEven!==null&&breakEven>=1)issues.push('Contract price plus estimated fee is too high');
+  if(lower===null||breakEven===null||lower<=breakEven)issues.push('Historical evidence does not clear price and fee hurdle');
+  const pick=issues.length===0?selected:'WAIT';
+  return {symbol,pick,watch:selected||'WAIT',graphDirection,graphMoveBps,trendDirection:graph||'WAIT',agreement:graph===selected&&graphDirection===selected,settledMatching:n,wins,observedAccuracy:rate,conservativeAccuracyBound:lower,ask,illustrativeFee:fee,breakEven,secondsLeft:Number.isFinite(secondsLeft)?secondsLeft:null,reasons:issues.length?issues:['Graph, model and historical evidence align; review market rules and actual fees'],updatedAt:Date.now(),note:'Observed accuracy is not a calibrated probability. WAIT means no evidence-backed pick. No trades are placed.'};
+}
+app.get('/api/selection/:symbol',(req,res)=>{const symbol=String(req.params.symbol).toUpperCase();res.set('Cache-Control','no-store');if(!['BTC','ETH','SOL'].includes(symbol))return res.status(404).json({error:'Unsupported symbol'});res.json(selectionFor(symbol));});
 app.get('/api/trend-results',(_req,res)=>{
   res.set('Cache-Control','no-store');
   const rows=state.predictions.filter(p=>p.model==='coinbase-trend-tracker-v1').slice(-100).reverse();

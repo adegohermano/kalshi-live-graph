@@ -427,6 +427,8 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
   .connection{flex-wrap:wrap}.live-datetime{margin-right:10px}
   .wl-win{color:var(--green);font-weight:800}.wl-loss{color:var(--red);font-weight:800}.wl-pending{color:var(--amber);font-weight:700}
   @media(max-width:600px){.live-datetime{order:-1;width:100%;margin:0 0 6px;text-align:right}.connection{max-width:100%}}
+
+.selection-card{padding:20px;margin-bottom:16px;border:1px solid rgba(160,120,255,.35);background:linear-gradient(120deg,rgba(100,60,180,.16),rgba(10,15,38,.6))}.selection-layout{display:grid;grid-template-columns:1fr 1.3fr;gap:22px;margin-top:15px;align-items:center}.selection-layout small{color:#b7a8e8;letter-spacing:.11em;font-size:11px}.selection-facts{line-height:1.85;font-size:13px;color:#d8d7ed}.selection-card .panel-direction{margin:8px 0}@media(max-width:650px){.selection-layout{grid-template-columns:1fr}}
 </style>
 </head>
 
@@ -479,6 +481,11 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
         <div class="signal-panel"><div class="panel-eyebrow">Favored direction</div><div class="panel-direction wait" id="directionalAction">ANALYZING</div><p id="directionalReason">Collecting fresh BTC and Kalshi data.</p><div class="strength-track"><div class="strength-fill" id="directionalBar"></div></div><div class="signal-detail" id="directionalStrength">Signal agreement: unavailable</div><p id="directionalRisk">Risk: unknown</p></div>
       </div>
       <p class="dashboard-note">A directional lean is not a BUY instruction. Weak, stale or conflicting data may make either side a poor trade. Scores are indicator agreement, not win probabilities.</p>
+    </section>
+    <section class="card selection-card" aria-live="polite">
+      <div class="card-head"><div><h3>Galaxy decision engine · Graph + accuracy</h3><p>Evidence-gated selection for the active coin; not a guarantee or automatic trade</p></div><span class="tag">MANUAL ONLY</span></div>
+      <div class="selection-layout"><div><small>WHAT TO PICK</small><div class="panel-direction wait" id="selectionPick">CHECKING…</div><p id="selectionWatch">Waiting for graph and settlement history</p></div><div class="selection-facts" id="selectionFacts">Collecting independent evidence…</div></div>
+      <p id="selectionReason" class="dashboard-note">The system recommends WAIT when accuracy history, graph agreement, liquidity, or data quality is insufficient.</p>
     </section>
     <section class="grid">
 
@@ -1384,9 +1391,26 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
     }
 
     // Multi-market tabs and scanner: each coin uses its own independent server feed.
+    let selectionRequest=0;
+    async function refreshSelection(){
+      const symbol=activeCoin,request=++selectionRequest;
+      try{
+        const r=await fetch(`${API_BASE}/api/selection/${symbol}`,{cache:'no-store'});
+        if(!r.ok)throw Error('Selection API unavailable');
+        const d=await r.json();if(request!==selectionRequest||symbol!==activeCoin)return;
+        const pick=d.pick||'WAIT';
+        $('selectionPick').textContent=pick==='WAIT'?'WAIT / NO PICK':'PICK '+pick;
+        $('selectionPick').className='panel-direction '+pick.toLowerCase();
+        $('selectionWatch').textContent=d.watch!=='WAIT'?'Favored direction: '+d.watch+' · not yet a qualified pick':'No usable favored direction';
+        const fmt=v=>Number.isFinite(v)?(v*100).toFixed(1)+'%':'Not available';
+        $('selectionFacts').textContent=`Graph: ${d.graphDirection} (${Number.isFinite(d.graphMoveBps)?d.graphMoveBps.toFixed(1)+' bps':'no data'}) · Trend model: ${d.trendDirection} · Historical ${d.watch} accuracy: ${fmt(d.observedAccuracy)} (${d.wins}/${d.settledMatching} settled) · Conservative accuracy bound: ${fmt(d.conservativeAccuracyBound)} · Ask: ${Number.isFinite(d.ask)?Math.round(d.ask*100)+'¢':'unavailable'} · Estimated break-even incl. illustrative fee: ${fmt(d.breakEven)}`;
+        $('selectionReason').textContent=d.reasons.join(' · ')+'. Historical hit rate is not a win probability. Verify actual Kalshi fees before trading.';
+      }catch(e){if(request!==selectionRequest)return;$('selectionPick').textContent='UNAVAILABLE';$('selectionPick').className='panel-direction wait';$('selectionFacts').textContent='Recommendation feed unavailable';$('selectionReason').textContent=e.message+' · Confirm the updated backend is deployed.';}
+    }
+    refreshSelection();setInterval(refreshSelection,15000);
     function selectCoin(symbol){
       if(!["BTC","ETH","SOL"].includes(symbol))return;
-      activeCoin=symbol;API_URL=`${API_BASE.replace(/\/+$/, "")}/api/snapshot/${symbol}`;
+      activeCoin=symbol;refreshSelection();API_URL=`${API_BASE.replace(/\/+$/, "")}/api/snapshot/${symbol}`;
       btcPoints=[];yesPoints=[];marketTicker=null;latestSnapshot=null;
       for(const button of document.querySelectorAll('.coin-tab')){const selected=button.dataset.coin===symbol;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));}
       document.querySelector('.chart-card.btc .card-head h3').textContent=symbol+' spot price';
@@ -1482,6 +1506,67 @@ body.low-motion::before,body.low-motion::after{animation:none!important;transiti
     async function updateProPerformance(){try{const r=await fetch(`${API_BASE}/api/predictions`,{cache:'no-store'});if(!r.ok)return;const d=await r.json(),rows=d.rows||[],settled=rows.filter(x=>x.status==='settled');const up=settled.filter(x=>x.direction==='UP'),down=settled.filter(x=>x.direction==='DOWN');const pct=a=>a.length?(100*a.filter(x=>x.correct).length/a.length).toFixed(1)+'%':'—';fillMetrics('proPerformance',['BTC settled: '+settled.length,'BTC observed accuracy: '+pct(settled),'UP: '+pct(up)+' ('+up.length+')','DOWN: '+pct(down)+' ('+down.length+')','ETH/SOL: not tracked yet']);}catch(_){}}
     applyPrefs();updatePro();updateProHealth();updateProPerformance();setInterval(updatePro,15000);setInterval(updateProHealth,15000);setInterval(updateProPerformance,30000);
 
+
+
+    // Split formerly stacked dashboard categories into dedicated pages.
+    // Existing element IDs, data fetches, and event handlers remain unchanged.
+    (function setupCategoryPages(){
+      const dashboard=document.getElementById('pageDashboard');
+      const coinNav=dashboard.querySelector('.coin-nav');
+      if(!coinNav)return;
+      const nav=document.createElement('nav');nav.className='category-nav';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','Dashboard categories');
+      const definitions=[['overview','Overview & Scanner'],['analysis','Live Analysis'],['paper','Paper Trading'],['history','Accuracy & W/L'],['settings','Settings & Health']];
+      const pages={};
+      for(const [key,label] of definitions){
+        const btn=document.createElement('button');btn.type='button';btn.className='category-tab';btn.textContent=label;btn.dataset.category=key;btn.setAttribute('role','tab');btn.setAttribute('aria-controls','category-'+key);btn.setAttribute('aria-selected',String(key==='analysis'));nav.append(btn);
+        const page=document.createElement('div');page.id='category-'+key;page.className='category-page';page.setAttribute('role','tabpanel');page.hidden=key!=='analysis';pages[key]=page;
+      }
+      coinNav.after(nav);
+      let insertion=nav;
+      for(const [key] of definitions){insertion.after(pages[key]);insertion=pages[key];}
+      const move=(key,element)=>{if(element)pages[key].append(element)};
+      const scanner=document.getElementById('scanner');move('overview',scanner);
+      const opportunity=document.getElementById('proPanel');move('overview',opportunity);
+      const panels=Array.from(dashboard.querySelectorAll('section.pro-panel'));
+      const paper=panels.find(e=>e.querySelector('#paperEnter'));
+      const preferences=panels.find(e=>e.querySelector('#proThreshold'));
+      move('paper',paper);
+      if(preferences){
+        // Move performance metrics to history, and settings controls to Settings.
+        const metrics=preferences.querySelector('#proPerformance');
+        const historyHeader=document.createElement('h3');historyHeader.className='category-title';historyHeader.textContent='Historical prediction performance';pages.history.append(historyHeader);
+        move('history',metrics);
+        const note=preferences.querySelector('.pro-muted');move('history',note);
+        const settingsHeading=preferences.querySelector('h3');if(settingsHeading)settingsHeading.textContent='Dashboard preferences';
+        move('settings',preferences);
+      }
+      const heading=dashboard.querySelector('section.heading');move('analysis',heading);
+      move('analysis',document.getElementById('banner'));
+      const directional=document.getElementById('directionalAction')?.closest('section.card');move('analysis',directional);
+      const selection=document.getElementById('selectionPick')?.closest('section.card');move('analysis',selection);
+      const mainGrid=dashboard.querySelector('section.grid');
+      if(mainGrid){
+        const predictionCard=document.getElementById('trendStats')?.closest('article.card');
+        if(predictionCard)move('history',predictionCard);
+        move('analysis',mainGrid);
+      }
+      const footer=dashboard.querySelector('footer');move('settings',footer);
+      const statusPanel=document.createElement('section');statusPanel.className='card pro-panel';
+      statusPanel.innerHTML='<h3>Feed diagnostics</h3><p class="pro-muted">Backend status and quote quality are checked continuously. Unavailable or stale feeds should never be treated as live picks.</p><div class="pro-grid"><div class="pro-box"><small>Backend</small><strong id="settingsHealthMirror">Checking…</strong></div><div class="pro-box"><small>Data quality</small><strong id="settingsDataMirror">Waiting…</strong></div></div>';
+      pages.settings.append(statusPanel);
+      function choose(key){
+        for(const [name] of definitions){pages[name].hidden=name!==key;nav.querySelector('[data-category="'+name+'"]').setAttribute('aria-selected',String(name===key));}
+        try{sessionStorage.setItem('galaxyCategory',key)}catch(_){}
+        if(key==='analysis')requestAnimationFrame(()=>{if(typeof drawAllCharts==='function')drawAllCharts()});
+        if(key==='settings'){
+          document.getElementById('settingsHealthMirror').textContent=document.getElementById('proHealth')?.textContent||'Unavailable';
+          document.getElementById('settingsDataMirror').textContent=document.getElementById('statusText')?.textContent||'Unavailable';
+        }
+      }
+      nav.addEventListener('click',e=>{const button=e.target.closest('button[data-category]');if(button)choose(button.dataset.category)});
+      let initial='analysis';try{initial=sessionStorage.getItem('galaxyCategory')||initial}catch(_){}
+      choose(pages[initial]?initial:'analysis');
+    })();
 
     poll();
   </script>
